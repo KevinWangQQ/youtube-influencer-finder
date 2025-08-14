@@ -30,7 +30,9 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
   }, [isOpen]);
 
   const handleSave = () => {
+    console.log('💾 Saving API key settings...');
     SettingsService.saveSettings(settings);
+    console.log('✅ Settings saved and cache cleared for new API keys');
     onSave();
     onClose();
   };

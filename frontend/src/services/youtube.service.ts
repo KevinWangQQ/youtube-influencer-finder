@@ -126,8 +126,8 @@ export class YouTubeService {
       maxResults = 50
     } = filters;
 
-    // Generate cache key
-    const cacheKey = this.generateCacheKey('search', { keywords, filters });
+    // Generate cache key that includes API key identifier to prevent cross-key contamination
+    const cacheKey = this.generateCacheKey('search', { keywords, filters, apiKeyHash: this.getApiKeyHash() });
     
     // Check cache first
     const cachedResult = this.getFromCache(cacheKey);
@@ -678,6 +678,12 @@ export class YouTubeService {
     
     // 使用完整的hash而不是截断，减少冲突概率
     return `${prefix}_${Math.abs(hash).toString(36)}`;
+  }
+
+  // 生成API key的安全哈希值用于缓存key
+  private getApiKeyHash(): string {
+    // 使用API key的前8位和后4位创建唯一标识，避免泄露完整key
+    return `${this.apiKey.substring(0, 8)}_${this.apiKey.substring(-4)}`;
   }
 
   private getFromCache(key: string): any {

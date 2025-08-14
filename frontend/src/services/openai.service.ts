@@ -94,8 +94,8 @@ export class OpenAIService {
     // 使用智能场景检测和对应的prompt
     const detectedScenario = scenario || PromptSelector.detectScenario(topic);
     
-    // Check cache first - 包含scenario以避免不同场景使用相同缓存
-    const cacheKey = `keywords_${topic}_${maxKeywords}_${language}_${detectedScenario}`;
+    // Check cache first - 包含scenario和API key标识以避免不同场景和API key使用相同缓存
+    const cacheKey = `keywords_${topic}_${maxKeywords}_${language}_${detectedScenario}_${this.getApiKeyHash()}`;
     const cached = this.getFromCache(cacheKey);
     if (cached) {
       console.log(`Returning cached keywords for topic: ${topic} (scenario: ${detectedScenario})`);
@@ -251,5 +251,11 @@ export class OpenAIService {
     } catch (error) {
       console.error('Cache set error:', error);
     }
+  }
+
+  // 生成API key的安全哈希值用于缓存key
+  private getApiKeyHash(): string {
+    // 使用API key的前8位和后4位创建唯一标识，避免泄露完整key
+    return `${this.apiKey.substring(0, 8)}_${this.apiKey.substring(-4)}`;
   }
 }

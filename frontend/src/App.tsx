@@ -31,14 +31,7 @@ function App() {
     // 清理过期和损坏的缓存数据
     YouTubeService.clearExpiredCache();
     
-    // 清理所有搜索缓存（临时解决方案，用于修复缓存bug）
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.startsWith('search_') || key.startsWith('keywords_')) {
-        localStorage.removeItem(key);
-        console.log(`Cleared cache: ${key}`);
-      }
-    });
+    // 清理过期缓存（保留此逻辑用于清理过期的缓存项）
   }, []);
 
   const handleSearch = async (topic: string, filters: SearchFilters) => {
@@ -49,14 +42,7 @@ function App() {
     // 搜索时自动关闭设置面板
     setShowSettings(false);
 
-    // 每次搜索前清理相关缓存，确保重新调用API
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.includes(topic.toLowerCase()) || key.startsWith('search_') || key.startsWith('keywords_')) {
-        localStorage.removeItem(key);
-        console.log(`🗑️ Cleared cache: ${key}`);
-      }
-    });
+    // 注意：缓存管理现在由SettingsService在API key变更时自动处理
 
     // 检测品牌并设置推荐内容
     const detectedBrand = PromptSelector.detectBrand(topic);
@@ -155,6 +141,12 @@ function App() {
 
   const handleSettingsChange = () => {
     setHasValidKeys(SettingsService.hasRequiredKeys());
+    // 清理现有结果，强制重新搜索以使用新API key
+    setResults([]);
+    setExpandedKeywords([]);
+    setError(null);
+    setHasSearched(false);
+    console.log('🔄 Settings updated - cleared results and cache');
   };
 
   return (
