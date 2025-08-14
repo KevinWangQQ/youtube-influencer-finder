@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SearchForm } from './components/SearchForm';
 import { ResultsList } from './components/ResultsList';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
 import { Header } from './components/Header';
+import { SettingsModal } from './components/SettingsModal';
 import { api, ApiError } from './utils/api';
+import { SettingsService } from './services/settings.service';
 import type { InfluencerResult, SearchFilters } from './types';
 
 function App() {
@@ -13,6 +15,13 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [hasValidKeys, setHasValidKeys] = useState(false);
+
+  useEffect(() => {
+    // Check if user has valid API keys on app load
+    setHasValidKeys(SettingsService.hasRequiredKeys());
+  }, []);
 
   const handleSearch = async (topic: string, filters: SearchFilters) => {
     setLoading(true);
@@ -79,9 +88,16 @@ function App() {
     }
   };
 
+  const handleSettingsChange = () => {
+    setHasValidKeys(SettingsService.hasRequiredKeys());
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header 
+        onSettingsClick={() => setShowSettings(true)}
+        hasValidKeys={hasValidKeys}
+      />
       
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
@@ -123,12 +139,29 @@ function App() {
                 Find Your Perfect YouTube Influencers
               </h2>
               <p className="text-gray-500 max-w-md mx-auto">
-                Enter a topic above to discover relevant influencers using AI-powered keyword expansion and YouTube search.
+                {hasValidKeys 
+                  ? 'Enter a topic above to discover relevant influencers using AI-powered keyword expansion and YouTube search.'
+                  : 'Configure your API keys in Settings to start discovering YouTube influencers.'
+                }
               </p>
+              {!hasValidKeys && (
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="btn-primary mt-4"
+                >
+                  Configure API Keys
+                </button>
+              )}
             </div>
           )}
         </div>
       </main>
+
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSave={handleSettingsChange}
+      />
     </div>
   );
 }
