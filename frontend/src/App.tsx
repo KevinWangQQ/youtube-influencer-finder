@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SearchForm } from './components/SearchForm';
 import { ResultsList } from './components/ResultsList';
+import { VideoResultsList } from './components/VideoResultsList';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
 import { Header } from './components/Header';
@@ -10,10 +11,10 @@ import { api, ApiError } from './utils/api';
 import { SettingsService } from './services/settings.service';
 import { YouTubeService } from './services/youtube.service';
 import { PromptSelector } from './config/prompts';
-import type { InfluencerResult, SearchFilters } from './types';
+import type { InfluencerResult, VideoResult, SearchFilters } from './types';
 
 function App() {
-  const [results, setResults] = useState<InfluencerResult[]>([]);
+  const [results, setResults] = useState<VideoResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<any>(null);
@@ -239,7 +240,7 @@ function App() {
           )}
           
           {!loading && hasSearched && results.length > 0 && (
-            <ResultsList 
+            <VideoResultsList 
               results={results} 
               onExport={handleExport}
               loading={loading}
@@ -254,8 +255,8 @@ function App() {
               </h2>
               <p className="text-gray-500 max-w-md mx-auto">
                 {hasValidKeys 
-                  ? '输入机型名称以精确搜索相关的YouTube影响者和评测视频，确保最高相关度和准确性。'
-                  : '请在设置中配置YouTube API密钥开始搜索影响者。现在只需要YouTube API密钥即可！'
+                  ? '输入机型名称以精确搜索相关的YouTube评测视频，直接找到最相关的内容和博主。'
+                  : '请在设置中配置YouTube API密钥开始搜索视频。现在只需要YouTube API密钥即可！'
                 }
               </p>
               {!hasValidKeys && (

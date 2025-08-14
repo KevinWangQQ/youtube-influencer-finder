@@ -1,4 +1,4 @@
-import type { SearchRequest, SearchResponse, InfluencerResult, SearchFilters } from '../types';
+import type { SearchRequest, SearchResponse, InfluencerResult, SearchFilters, VideoResult } from '../types';
 import { YouTubeService } from '../services/youtube.service';
 import { SettingsService } from '../services/settings.service';
 
@@ -47,9 +47,9 @@ export const api = {
         maxResults: request.filters.maxResults || 50
       };
       
-      // 使用用户输入的机型作为直接搜索关键词
+      // 使用用户输入的机型作为直接搜索关键词，搜索视频
       const directKeywords = [request.topic];
-      const influencers = await youtubeService.searchInfluencers(
+      const videos = await youtubeService.searchVideos(
         directKeywords,
         searchFilters,
         request.topic
@@ -60,12 +60,12 @@ export const api = {
 
       const response: SearchResponse = {
         searchId,
-        results: influencers,
+        results: videos,
         expandedKeywords: directKeywords, // 直接返回用户输入作为"扩展"关键词
-        totalFound: influencers.length
+        totalFound: videos.length
       };
 
-      console.log(`Direct search completed successfully. Found ${influencers.length} influencers`);
+      console.log(`Direct video search completed successfully. Found ${videos.length} videos`);
       return response;
 
     } catch (error) {
@@ -116,13 +116,13 @@ export const api = {
     };
   },
 
-  async exportToCsv(results: InfluencerResult[]): Promise<Blob> {
+  async exportToCsv(results: VideoResult[]): Promise<Blob> {
     try {
       if (!results || results.length === 0) {
         throw new ApiError('NO_DATA', 'No data to export');
       }
 
-      const csv = this.generateCsv(results);
+      const csv = this.generateVideoCsv(results);
       return new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     } catch (error) {
       console.error('Export CSV error:', error);
@@ -130,6 +130,56 @@ export const api = {
     }
   },
 
+  generateVideoCsv(results: VideoResult[]): string {
+    if (results.length === 0) {
+      return 'No data to export';
+    }
+
+    // CSV headers for video-centric export
+    const headers = [
+      'Video Title',
+      'Video URL',
+      'Video Description',
+      'Published Date',
+      'View Count',
+      'Like Count',
+      'Comment Count',
+      'Duration',
+      'Relevance Score',
+      'Channel Name',
+      'Channel URL',
+      'Channel Subscribers',
+      'Channel Country'
+    ];
+
+    // CSV rows
+    const rows = results.map(result => {
+      return [
+        this.escapeCsvValue(result.title || ''),
+        result.videoUrl || '',
+        this.escapeCsvValue(result.description?.substring(0, 200) || ''), // 限制描述长度
+        result.publishedAt || '',
+        result.viewCount || 0,
+        result.likeCount || 0,
+        result.commentCount || 0,
+        result.duration || '',
+        result.relevanceScore || 0,
+        this.escapeCsvValue(result.channel.channelTitle || ''),
+        result.channel.channelUrl || '',
+        result.channel.subscriberCount || 0,
+        result.channel.country || ''
+      ];
+    });
+
+    // Combine headers and rows
+    const csvContent = [headers, ...rows]
+      .map(row => row.join(','))
+      .join('\n');
+
+    return csvContent;
+  },
+
+  // 保留原有的方法以便兼容性
   generateCsv(results: InfluencerResult[]): string {
     if (results.length === 0) {
       return 'No data to export';

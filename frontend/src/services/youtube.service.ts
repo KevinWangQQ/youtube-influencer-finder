@@ -1,4 +1,4 @@
-import type { InfluencerResult, RecentVideo, SearchFilters } from '../types';
+import type { InfluencerResult, RecentVideo, SearchFilters, VideoResult } from '../types';
 
 interface YouTubeApiResponse {
   items?: any[];
@@ -55,15 +55,27 @@ export class YouTubeService {
         let message = '❌ YouTube API连接失败';
         if (response.status === 403) {
           const error = errorData?.error;
+          console.error('🚨 YouTube API 403错误详情:', errorData);
+          
           if (error?.message?.includes('quotaExceeded')) {
-            message = '🚫 YouTube API配额已用完';
+            message = '🚫 YouTube API配额已用完 - 请等待配额重置或升级计划';
           } else if (error?.message?.includes('accessNotConfigured')) {
-            message = '🔧 YouTube Data API v3未启用';
+            message = '🔧 YouTube Data API v3未启用 - 请在Google Cloud Console中启用';
           } else if (error?.message?.includes('keyInvalid')) {
-            message = '🔑 YouTube API密钥无效';
+            message = '🔑 YouTube API密钥无效 - 请检查密钥是否正确';
+          } else if (error?.message?.includes('forbidden')) {
+            message = '🚫 API密钥权限不足 - 请检查密钥是否有YouTube API权限';
           } else {
-            message = '🚫 YouTube API访问被拒绝';
+            message = `🚫 YouTube API访问被拒绝 - 错误: ${error?.message || '未知错误'}`;
           }
+          
+          // 提供详细的解决方案
+          console.error('🔧 解决方案:');
+          console.error('1. 确认API密钥有效: https://console.cloud.google.com/apis/credentials');
+          console.error('2. 启用YouTube Data API v3: https://console.cloud.google.com/apis/library/youtube.googleapis.com');
+          console.error('3. 检查API配额: https://console.cloud.google.com/apis/api/youtube.googleapis.com/quotas');
+          console.error('4. 验证HTTP引用来源设置');
+          
         } else if (response.status === 400) {
           message = '❌ API请求参数错误';
         }
@@ -273,6 +285,18 @@ export class YouTubeService {
           }
         } catch (e) {
           userMessage = `🌐 YouTube API请求失败 (${searchResponse.status})，请稍后重试。`;
+        }
+        
+        // 详细的403错误诊断
+        if (searchResponse.status === 403) {
+          console.error('🚨 YouTube API 403错误详细诊断:');
+          console.error('📍 检查清单:');
+          console.error('1. API密钥是否有效？');
+          console.error('2. YouTube Data API v3是否已启用？');
+          console.error('3. API密钥是否有YouTube API权限？');
+          console.error('4. 是否设置了正确的HTTP引用来源？');
+          console.error('5. API配额是否已用完？');
+          console.error('🔗 请访问: https://console.cloud.google.com/apis/dashboard');
         }
         
         const error = new Error(userMessage || errorMessage);
@@ -690,6 +714,276 @@ export class YouTubeService {
     
     // 使用完整的hash而不是截断，减少冲突概率
     return `${prefix}_${Math.abs(hash).toString(36)}`;
+  }
+
+  // 新方法：直接搜索视频（以视频为主体）
+  async searchVideos(
+    keywords: string[], 
+    filters: SearchFilters,
+    originalTopic?: string
+  ): Promise<VideoResult[]> {
+    const {
+      region = 'US',
+      minViews = 10000,
+      maxResults = 50
+    } = filters;
+
+    // Generate cache key that includes API key identifier
+    const cacheKey = this.generateCacheKey('videos_search', { keywords, filters, apiKeyHash: this.getApiKeyHash() });
+    
+    // Check cache first
+    const cachedResult = this.getFromCache(cacheKey);
+    if (cachedResult) {
+      console.log(`Returning cached video search results for keywords: ${keywords.join(', ')}`);
+      return cachedResult;
+    }
+
+    try {
+      console.log(`🎥 Searching YouTube videos with keywords: ${keywords.join(', ')}`);
+      if (originalTopic) {
+        console.log(`🎯 Original topic: "${originalTopic}" - prioritizing related videos`);
+      }
+
+      const allVideos = new Map<string, VideoResult>();
+
+      // 对单个关键词进行多种搜索模式
+      for (const keyword of keywords.slice(0, 1)) { // 只处理第一个关键词（用户输入）
+        console.log(`🎯 Performing comprehensive video search for: "${keyword}"`);
+        
+        // 使用不同的搜索模式来获取更全面的结果
+        const searchModes = [
+          keyword, // 原始关键词
+          `${keyword} review`, // 评测视频
+          `${keyword} unboxing`, // 开箱视频
+          `${keyword} test`, // 测试视频
+          `${keyword} hands on` // 上手体验
+        ];
+        
+        for (const searchQuery of searchModes) {
+          try {
+            const videos = await this.searchVideosByKeyword(searchQuery, region, Math.min(15, maxResults), originalTopic);
+            
+            videos.forEach(video => {
+              if (!allVideos.has(video.videoId)) {
+                allVideos.set(video.videoId, video);
+              } else {
+                // Update relevance score if this video appears in multiple searches
+                const existing = allVideos.get(video.videoId)!;
+                existing.relevanceScore = Math.min(100, existing.relevanceScore + 15);
+              }
+            });
+          } catch (error) {
+            console.warn(`Failed to search for video query: ${searchQuery}`, error);
+          }
+        }
+      }
+
+      // Filter results based on criteria
+      let results = Array.from(allVideos.values())
+        .filter(video => video.viewCount >= minViews);
+
+      // Sort by relevance score and view count
+      results = results
+        .sort((a, b) => {
+          const relevanceDiff = b.relevanceScore - a.relevanceScore;
+          if (Math.abs(relevanceDiff) < 5) {
+            return b.viewCount - a.viewCount;
+          }
+          return relevanceDiff;
+        })
+        .slice(0, maxResults);
+
+      // Cache the results for 30 minutes
+      this.setCache(cacheKey, results, 30 * 60 * 1000);
+
+      console.log(`Found ${results.length} videos matching criteria`);
+      return results;
+
+    } catch (error) {
+      console.error('YouTube video search error:', error);
+      throw new Error('Failed to search YouTube videos');
+    }
+  }
+
+  private async searchVideosByKeyword(
+    keyword: string, 
+    region: string, 
+    maxResults: number,
+    originalTopic?: string
+  ): Promise<VideoResult[]> {
+    try {
+      // 直接搜索视频
+      const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
+      searchUrl.searchParams.set('part', 'snippet');
+      searchUrl.searchParams.set('q', keyword);
+      searchUrl.searchParams.set('type', 'video');
+      searchUrl.searchParams.set('regionCode', region);
+      searchUrl.searchParams.set('maxResults', maxResults.toString());
+      searchUrl.searchParams.set('order', 'relevance');
+      searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
+      searchUrl.searchParams.set('key', this.apiKey);
+
+      console.log(`🔍 Searching YouTube videos for: "${keyword}"`);
+      
+      const searchResponse = await fetch(searchUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
+      
+      if (!searchResponse.ok) {
+        console.error(`YouTube API Error ${searchResponse.status} for video search: ${keyword}`);
+        return [];
+      }
+
+      const searchData: YouTubeApiResponse = await searchResponse.json();
+
+      if (!searchData.items) {
+        return [];
+      }
+
+      // Extract video IDs
+      const videoIds = searchData.items
+        .map(item => item.id?.videoId)
+        .filter(Boolean) as string[];
+
+      if (videoIds.length === 0) {
+        return [];
+      }
+
+      // Get detailed video information
+      const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+      videosUrl.searchParams.set('part', 'snippet,statistics,contentDetails');
+      videosUrl.searchParams.set('id', videoIds.join(','));
+      videosUrl.searchParams.set('key', this.apiKey);
+
+      const videosResponse = await fetch(videosUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
+
+      if (!videosResponse.ok) {
+        console.warn(`YouTube Videos API error ${videosResponse.status} for videos`);
+        return [];
+      }
+
+      const videosData: YouTubeApiResponse = await videosResponse.json();
+
+      if (!videosData.items) {
+        return [];
+      }
+
+      // Get channel information for all videos
+      const channelIds = [...new Set(
+        videosData.items
+          .map(item => item.snippet?.channelId)
+          .filter(Boolean) as string[]
+      )];
+
+      const channelsUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
+      channelsUrl.searchParams.set('part', 'snippet,statistics');
+      channelsUrl.searchParams.set('id', channelIds.join(','));
+      channelsUrl.searchParams.set('key', this.apiKey);
+
+      const channelsResponse = await fetch(channelsUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
+
+      const channelsData: YouTubeApiResponse = channelsResponse.ok ? await channelsResponse.json() : { items: [] };
+      const channelMap = new Map(
+        (channelsData.items || []).map(channel => [channel.id, channel])
+      );
+
+      // Process videos into VideoResult format
+      const videos: VideoResult[] = [];
+      
+      for (const video of videosData.items) {
+        try {
+          const videoData = await this.processVideoData(video, channelMap, keyword, originalTopic);
+          if (videoData) {
+            videos.push(videoData);
+          }
+        } catch (error) {
+          console.warn(`Failed to process video ${video.id}:`, error);
+        }
+      }
+
+      return videos;
+
+    } catch (error) {
+      console.error(`Search videos by keyword error for "${keyword}":`, error);
+      return [];
+    }
+  }
+
+  private async processVideoData(
+    video: any,
+    channelMap: Map<string, any>,
+    searchKeyword: string,
+    originalTopic?: string
+  ): Promise<VideoResult | null> {
+    try {
+      const snippet = video.snippet;
+      const statistics = video.statistics;
+      const contentDetails = video.contentDetails;
+
+      if (!snippet || !statistics) {
+        return null;
+      }
+
+      const channelData = channelMap.get(snippet.channelId);
+      if (!channelData) {
+        return null;
+      }
+
+      const viewCount = parseInt(statistics.viewCount || '0');
+      const likeCount = parseInt(statistics.likeCount || '0');
+      const commentCount = parseInt(statistics.commentCount || '0');
+
+      // Calculate relevance score for this video
+      const relevanceScore = this.calculateVideoRelevanceScore(
+        snippet.title || '',
+        searchKeyword
+      );
+
+      return {
+        videoId: video.id,
+        title: snippet.title || 'Unknown Title',
+        description: snippet.description || '',
+        publishedAt: snippet.publishedAt || '',
+        viewCount,
+        likeCount,
+        commentCount,
+        duration: contentDetails?.duration || '',
+        thumbnailUrl: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '',
+        videoUrl: `https://www.youtube.com/watch?v=${video.id}`,
+        channel: {
+          channelId: snippet.channelId,
+          channelTitle: snippet.channelTitle || 'Unknown Channel',
+          channelUrl: `https://www.youtube.com/channel/${snippet.channelId}`,
+          subscriberCount: parseInt(channelData.statistics?.subscriberCount || '0'),
+          thumbnailUrl: channelData.snippet?.thumbnails?.medium?.url || '',
+          country: channelData.snippet?.country || 'Unknown'
+        },
+        relevanceScore: Math.round(relevanceScore * 100)
+      };
+
+    } catch (error) {
+      console.warn('Process video data error:', error);
+      return null;
+    }
   }
 
   // 生成API key的安全哈希值用于缓存key

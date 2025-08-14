@@ -10,11 +10,36 @@ export interface SearchRequest {
 
 export interface SearchResponse {
   searchId: string;
-  results: InfluencerResult[];
+  results: VideoResult[];
   expandedKeywords: string[];
   totalFound: number;
 }
 
+// 新的视频结果结构 - 以视频为主体
+export interface VideoResult {
+  videoId: string;
+  title: string;
+  description: string;
+  publishedAt: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  duration: string;
+  thumbnailUrl: string;
+  videoUrl: string;
+  // 关联的频道信息
+  channel: {
+    channelId: string;
+    channelTitle: string;
+    channelUrl: string;
+    subscriberCount: number;
+    thumbnailUrl: string;
+    country?: string;
+  };
+  relevanceScore: number;
+}
+
+// 保留原有的结构作为兼容性
 export interface InfluencerResult {
   channelId: string;
   channelTitle: string;
@@ -62,3 +87,6 @@ export interface SearchFilters {
 }
 
 export type SortOption = 'relevance' | 'subscribers' | 'views' | 'recent';
+
+// 新的视频排序选项
+export type VideoSortOption = 'relevance' | 'viewCount' | 'publishedAt' | 'likeCount' | 'duration';
