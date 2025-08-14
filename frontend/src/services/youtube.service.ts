@@ -191,8 +191,8 @@ export class YouTubeService {
         return null;
       }
 
-      // Get recent videos
-      const recentVideos = await this.getRecentVideos(channel.id, 3);
+      // Get recent videos (获取更多视频，然后按播放量排序选择前3个)
+      const recentVideos = await this.getTopViewedVideos(channel.id, searchKeyword, 3);
 
       // Calculate relevance score
       const relevanceScore = this.calculateRelevanceScore(
@@ -222,14 +222,15 @@ export class YouTubeService {
     }
   }
 
-  private async getRecentVideos(channelId: string, maxResults: number): Promise<RecentVideo[]> {
+  private async getTopViewedVideos(channelId: string, searchKeyword: string, maxResults: number): Promise<RecentVideo[]> {
     try {
+      // 获取更多视频以便筛选 (获取20个视频)
       const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
       searchUrl.searchParams.set('part', 'snippet');
       searchUrl.searchParams.set('channelId', channelId);
       searchUrl.searchParams.set('type', 'video');
-      searchUrl.searchParams.set('order', 'date');
-      searchUrl.searchParams.set('maxResults', maxResults.toString());
+      searchUrl.searchParams.set('order', 'relevance'); // 改为按相关性排序
+      searchUrl.searchParams.set('maxResults', '20'); // 获取更多视频
       searchUrl.searchParams.set('key', this.apiKey);
 
       const searchResponse = await fetch(searchUrl.toString());
@@ -267,19 +268,36 @@ export class YouTubeService {
         return [];
       }
 
-      return videosData.items.map(video => ({
+      // 转换为RecentVideo格式并计算相关性分数
+      const videos = videosData.items.map(video => ({
         videoId: video.id!,
         title: video.snippet?.title || 'Unknown Title',
         publishedAt: video.snippet?.publishedAt || '',
         viewCount: parseInt(video.statistics?.viewCount || '0'),
-        thumbnailUrl: video.snippet?.thumbnails?.medium?.url || ''
+        thumbnailUrl: video.snippet?.thumbnails?.medium?.url || '',
+        relevanceScore: this.calculateVideoRelevanceScore(video.snippet?.title || '', searchKeyword)
       }));
 
+      // 按相关性和播放量综合排序，优先显示相关的高播放量视频
+      const sortedVideos = videos
+        .filter(video => video.relevanceScore > 0.3) // 过滤掉不太相关的视频
+        .sort((a, b) => {
+          // 综合考虑相关性分数和播放量
+          const scoreA = a.relevanceScore * 0.7 + Math.log10(a.viewCount + 1) * 0.3;
+          const scoreB = b.relevanceScore * 0.7 + Math.log10(b.viewCount + 1) * 0.3;
+          return scoreB - scoreA;
+        })
+        .slice(0, maxResults); // 取前maxResults个
+
+      // 移除relevanceScore字段，因为接口不需要
+      return sortedVideos.map(({ relevanceScore, ...video }) => video);
+
     } catch (error) {
-      console.warn(`Failed to get recent videos for channel ${channelId}:`, error);
+      console.warn(`Failed to get top viewed videos for channel ${channelId}:`, error);
       return [];
     }
   }
+
 
   private calculateRelevanceScore(
     channelTitle: string,
@@ -328,6 +346,42 @@ export class YouTubeService {
     else score += 5;
 
     return Math.min(100, Math.round(score));
+  }
+
+  private calculateVideoRelevanceScore(videoTitle: string, searchKeyword: string): number {
+    const titleLower = videoTitle.toLowerCase();
+    const keywordLower = searchKeyword.toLowerCase();
+    
+    // 精确匹配
+    if (titleLower.includes(keywordLower)) {
+      return 1.0;
+    }
+    
+    // 单词匹配
+    const keywordWords = keywordLower.split(' ').filter(word => word.length > 2);
+    const titleWords = titleLower.split(' ');
+    
+    let matchCount = 0;
+    keywordWords.forEach(keyword => {
+      titleWords.forEach(titleWord => {
+        if (titleWord.includes(keyword) || keyword.includes(titleWord)) {
+          matchCount++;
+        }
+      });
+    });
+    
+    const relevanceRatio = matchCount / Math.max(keywordWords.length, 1);
+    
+    // 加分项：包含常见评测词汇
+    const techWords = ['review', 'test', 'unboxing', 'setup', 'comparison', 'vs', 'tutorial', 'guide'];
+    const hasTechWords = techWords.some(word => titleLower.includes(word));
+    
+    let score = relevanceRatio;
+    if (hasTechWords) {
+      score += 0.2;
+    }
+    
+    return Math.min(1.0, score);
   }
 
   private generateCacheKey(prefix: string, params: any): string {

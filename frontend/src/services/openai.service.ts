@@ -1,7 +1,10 @@
+import { PromptSelector } from '../config/prompts';
+
 interface KeywordExpansionRequest {
   topic: string;
   maxKeywords?: number;
   language?: string;
+  scenario?: 'general' | 'tplink' | 'tech' | 'smart_home';
 }
 
 interface KeywordExpansionResponse {
@@ -21,7 +24,7 @@ export class OpenAIService {
   }
 
   async expandKeywords(request: KeywordExpansionRequest): Promise<KeywordExpansionResponse> {
-    const { topic, maxKeywords = 10, language = 'en' } = request;
+    const { topic, maxKeywords = 10, language = 'en', scenario } = request;
 
     // Check cache first
     const cacheKey = `keywords_${topic}_${maxKeywords}_${language}`;
@@ -34,7 +37,11 @@ export class OpenAIService {
     try {
       console.log(`Expanding keywords for topic: ${topic}`);
 
-      const prompt = this.buildPrompt(topic, maxKeywords, language);
+      // 使用智能场景检测和对应的prompt
+      const detectedScenario = scenario || PromptSelector.detectScenario(topic);
+      const prompt = PromptSelector.getPrompt(topic, detectedScenario);
+      
+      console.log(`Using ${detectedScenario} scenario for topic: ${topic}`);
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -102,25 +109,6 @@ export class OpenAIService {
     }
   }
 
-  private buildPrompt(topic: string, maxKeywords: number, language: string): string {
-    return `
-Based on the topic "${topic}", generate ${maxKeywords} highly relevant keywords that would help find YouTube influencers and content creators in this niche.
-
-Requirements:
-1. Focus on specific niches, synonyms, and related terms
-2. Include both broad and specific keywords
-3. Consider different angles and subcategories within this topic
-4. Include terms that content creators might use in their channel titles or video descriptions
-5. Avoid overly generic terms
-6. Language: ${language}
-
-Format: Return only the keywords, separated by commas, no quotes or additional text.
-
-Example for "fitness":
-fitness, workout, exercise, gym, bodybuilding, yoga, nutrition, weight loss, muscle building, cardio
-
-Keywords for "${topic}":`;
-  }
 
   private parseKeywords(content: string): string[] {
     return content
