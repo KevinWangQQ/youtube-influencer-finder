@@ -31,8 +31,18 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
 
   const handleSave = () => {
     console.log('💾 Saving API key settings...');
+    console.log('🔧 Current settings before save:', settings);
+    
+    // 强制清理所有缓存确保新key生效
+    SettingsService.forceClearAllCache();
+    
     SettingsService.saveSettings(settings);
-    console.log('✅ Settings saved and cache cleared for new API keys');
+    
+    // 验证保存后的设置
+    const savedSettings = SettingsService.getSettings();
+    console.log('🔍 Verification - settings after save:', savedSettings);
+    
+    console.log('✅ Settings saved and ALL cache cleared for new API keys');
     onSave();
     onClose();
   };

@@ -137,13 +137,28 @@ function App() {
   };
 
   const handleSettingsChange = () => {
-    setHasValidKeys(SettingsService.hasRequiredKeys());
+    console.log('🔄 Settings change triggered');
+    
+    // 重新检查API key状态
+    const newHasValidKeys = SettingsService.hasRequiredKeys();
+    console.log(`🔑 API keys validation: ${newHasValidKeys ? 'VALID' : 'INVALID'}`);
+    
+    setHasValidKeys(newHasValidKeys);
+    
     // 清理现有结果，强制重新搜索以使用新API key
     setResults([]);
     setExpandedKeywords([]);
     setError(null);
     setHasSearched(false);
-    console.log('🔄 Settings updated - cleared results and cache');
+    
+    // 验证设置是否正确加载
+    const currentSettings = SettingsService.getSettings();
+    console.log('🔍 Current settings after change:', {
+      hasYouTube: !!currentSettings.youtubeApiKey,
+      youtubeKeyPreview: currentSettings.youtubeApiKey ? `${currentSettings.youtubeApiKey.substring(0, 10)}...` : 'EMPTY'
+    });
+    
+    console.log('🔄 Settings updated - cleared results and forced refresh');
   };
 
   return (
