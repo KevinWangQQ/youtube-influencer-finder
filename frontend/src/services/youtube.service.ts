@@ -17,6 +17,7 @@ export class YouTubeService {
       throw new Error('YouTube API key is required');
     }
     this.apiKey = apiKey;
+    console.log(`🔑 YouTubeService initialized with API key: ${apiKey.substring(0, 10)}...${apiKey.substring(-4)}`);
   }
 
   // 测试API连接状态
@@ -32,7 +33,14 @@ export class YouTubeService {
       testUrl.searchParams.set('maxResults', '1');
       testUrl.searchParams.set('key', this.apiKey);
 
-      const response = await fetch(testUrl.toString());
+      const response = await fetch(testUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
       
       if (response.ok) {
         console.log('✅ YouTube API connection successful');
@@ -211,7 +219,14 @@ export class YouTubeService {
       console.log(`🔍 Searching YouTube for: "${keyword}"`);
       console.log(`📡 API URL: ${searchUrl.toString().replace(this.apiKey, 'API_KEY_HIDDEN')}`);
       
-      const searchResponse = await fetch(searchUrl.toString());
+      const searchResponse = await fetch(searchUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
       
       if (!searchResponse.ok) {
         let errorMessage = `YouTube API Error ${searchResponse.status}`;
@@ -275,7 +290,14 @@ export class YouTubeService {
       channelsUrl.searchParams.set('id', channelIds.slice(0, maxResults).join(','));
       channelsUrl.searchParams.set('key', this.apiKey);
 
-      const channelsResponse = await fetch(channelsUrl.toString());
+      const channelsResponse = await fetch(channelsUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
       if (!channelsResponse.ok) {
         let errorMessage = `YouTube Channels API Error ${channelsResponse.status}`;
         let userMessage = '';
@@ -404,7 +426,14 @@ export class YouTubeService {
       searchUrl.searchParams.set('maxResults', '20'); // 获取更多视频
       searchUrl.searchParams.set('key', this.apiKey);
 
-      const searchResponse = await fetch(searchUrl.toString());
+      const searchResponse = await fetch(searchUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
       if (!searchResponse.ok) {
         return [];
       }
@@ -428,7 +457,14 @@ export class YouTubeService {
       videosUrl.searchParams.set('id', videoIds.join(','));
       videosUrl.searchParams.set('key', this.apiKey);
 
-      const videosResponse = await fetch(videosUrl.toString());
+      const videosResponse = await fetch(videosUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors'
+      });
       if (!videosResponse.ok) {
         console.warn(`YouTube Videos API error ${videosResponse.status} for channel ${channelId}`);
         

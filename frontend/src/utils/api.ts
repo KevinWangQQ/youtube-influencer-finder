@@ -29,6 +29,10 @@ export const api = {
   async searchInfluencers(request: SearchRequest): Promise<SearchResponse> {
     const settings = SettingsService.getSettings();
     
+    console.log(`🔧 API Keys loaded from settings:`);
+    console.log(`📝 OpenAI Key: ${settings.openaiApiKey ? `${settings.openaiApiKey.substring(0, 8)}...` : 'MISSING'}`);
+    console.log(`📺 YouTube Key: ${settings.youtubeApiKey ? `${settings.youtubeApiKey.substring(0, 10)}...` : 'MISSING'}`);
+    
     if (!settings.openaiApiKey) {
       throw new ApiError('MISSING_OPENAI_KEY', 'OpenAI API key is required. Please set it in Settings.');
     }
