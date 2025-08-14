@@ -148,10 +148,10 @@ export class YouTubeService {
       const prioritizedKeywords = this.prioritizeKeywords(keywords, originalTopic);
       console.log(`📊 Keyword priority order: ${prioritizedKeywords.join(', ')}`);
 
-      // Search with multiple keywords (prioritized order)
-      for (const keyword of prioritizedKeywords.slice(0, 5)) { // Limit to 5 keywords to avoid quota issues
+      // Search with multiple keywords (prioritized order) - 增加关键词搜索数量
+      for (const keyword of prioritizedKeywords.slice(0, 8)) { // 增加到8个关键词
         try {
-          const channels = await this.searchByKeyword(keyword, region, Math.min(10, maxResults), originalTopic);
+          const channels = await this.searchByKeyword(keyword, region, Math.min(15, maxResults), originalTopic); // 每个关键词获取更多结果
           
           channels.forEach(channel => {
             if (!allChannels.has(channel.channelId)) {
@@ -205,13 +205,15 @@ export class YouTubeService {
     originalTopic?: string
   ): Promise<InfluencerResult[]> {
     try {
-      // Search for videos first
+      // Search for videos first with enhanced search query
       const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
       searchUrl.searchParams.set('part', 'snippet');
-      searchUrl.searchParams.set('q', keyword);
+      // 改进搜索查询，确保搜索范围包含视频标题和描述
+      const enhancedQuery = `"${keyword}" OR ${keyword} review OR ${keyword} unboxing OR ${keyword} test`;
+      searchUrl.searchParams.set('q', enhancedQuery);
       searchUrl.searchParams.set('type', 'video');
       searchUrl.searchParams.set('regionCode', region);
-      searchUrl.searchParams.set('maxResults', (maxResults * 2).toString());
+      searchUrl.searchParams.set('maxResults', (maxResults * 3).toString()); // 增加搜索结果数量
       searchUrl.searchParams.set('order', 'relevance');
       searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
       searchUrl.searchParams.set('key', this.apiKey);
@@ -507,11 +509,11 @@ export class YouTubeService {
 
       // 按相关性和播放量综合排序，优先显示相关的高播放量视频
       const sortedVideos = videos
-        .filter(video => video.relevanceScore > 0.3) // 过滤掉不太相关的视频
+        .filter(video => video.relevanceScore > 0.5) // 提高相关性过滤标准
         .sort((a, b) => {
-          // 综合考虑相关性分数和播放量
-          const scoreA = a.relevanceScore * 0.7 + Math.log10(a.viewCount + 1) * 0.3;
-          const scoreB = b.relevanceScore * 0.7 + Math.log10(b.viewCount + 1) * 0.3;
+          // 综合考虑相关性分数和播放量，提高相关性权重
+          const scoreA = a.relevanceScore * 0.8 + Math.log10(a.viewCount + 1) * 0.2;
+          const scoreB = b.relevanceScore * 0.8 + Math.log10(b.viewCount + 1) * 0.2;
           return scoreB - scoreA;
         })
         .slice(0, maxResults); // 取前maxResults个
@@ -618,33 +620,45 @@ export class YouTubeService {
     const titleLower = videoTitle.toLowerCase();
     const keywordLower = searchKeyword.toLowerCase();
     
-    // 精确匹配
+    // 精确匹配 - 最高分
     if (titleLower.includes(keywordLower)) {
       return 1.0;
     }
     
-    // 单词匹配
+    // 单词匹配 - 更严格的匹配逻辑
     const keywordWords = keywordLower.split(' ').filter(word => word.length > 2);
-    const titleWords = titleLower.split(' ');
+    const titleWords = titleLower.split(/[\s\-_\(\)\[\]]+/).filter(word => word.length > 1);
     
-    let matchCount = 0;
+    let exactMatchCount = 0;
+    let partialMatchCount = 0;
+    
     keywordWords.forEach(keyword => {
       titleWords.forEach(titleWord => {
-        if (titleWord.includes(keyword) || keyword.includes(titleWord)) {
-          matchCount++;
+        if (titleWord === keyword) {
+          exactMatchCount++;
+        } else if (titleWord.includes(keyword) || keyword.includes(titleWord)) {
+          partialMatchCount++;
         }
       });
     });
     
-    const relevanceRatio = matchCount / Math.max(keywordWords.length, 1);
+    // 计算匹配得分：精确匹配权重更高
+    const exactRatio = exactMatchCount / Math.max(keywordWords.length, 1);
+    const partialRatio = partialMatchCount / Math.max(keywordWords.length, 1);
+    let score = exactRatio * 0.8 + partialRatio * 0.3;
     
-    // 加分项：包含常见评测词汇
-    const techWords = ['review', 'test', 'unboxing', 'setup', 'comparison', 'vs', 'tutorial', 'guide'];
-    const hasTechWords = techWords.some(word => titleLower.includes(word));
+    // 加分项：包含常见评测和相关词汇
+    const relevantWords = ['review', 'test', 'unboxing', 'setup', 'comparison', 'vs', 'tutorial', 'guide', 'hands-on', 'first look', 'impressions'];
+    const hasRelevantWords = relevantWords.some(word => titleLower.includes(word));
     
-    let score = relevanceRatio;
-    if (hasTechWords) {
-      score += 0.2;
+    if (hasRelevantWords) {
+      score += 0.15;
+    }
+    
+    // 关键词在标题开头的额外加分
+    const titleStart = titleLower.substring(0, Math.min(50, titleLower.length));
+    if (keywordWords.some(word => titleStart.includes(word))) {
+      score += 0.1;
     }
     
     return Math.min(1.0, score);

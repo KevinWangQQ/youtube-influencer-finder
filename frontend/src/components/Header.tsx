@@ -1,9 +1,10 @@
 interface HeaderProps {
   onSettingsClick: () => void;
   hasValidKeys: boolean;
+  showSettings: boolean;
 }
 
-export const Header = ({ onSettingsClick, hasValidKeys }: HeaderProps) => {
+export const Header = ({ onSettingsClick, hasValidKeys, showSettings }: HeaderProps) => {
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="container mx-auto px-4 py-4">
@@ -30,7 +31,11 @@ export const Header = ({ onSettingsClick, hasValidKeys }: HeaderProps) => {
             
             <button
               onClick={onSettingsClick}
-              className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                showSettings 
+                  ? 'bg-primary-100 text-primary-700 hover:bg-primary-200' 
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
               title="Settings"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

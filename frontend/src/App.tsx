@@ -46,6 +46,8 @@ function App() {
     setError(null);
     setHasSearched(true);
     setSearchStep('expanding');
+    // 搜索时自动关闭设置面板
+    setShowSettings(false);
 
     // 每次搜索前清理相关缓存，确保重新调用API
     const keys = Object.keys(localStorage);
@@ -158,8 +160,9 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header 
-        onSettingsClick={() => setShowSettings(true)}
+        onSettingsClick={() => setShowSettings(!showSettings)}
         hasValidKeys={hasValidKeys}
+        showSettings={showSettings}
       />
       
       <main className="container mx-auto px-4 py-8">

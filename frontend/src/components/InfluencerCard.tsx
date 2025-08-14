@@ -88,13 +88,13 @@ export const InfluencerCard = ({ influencer }: InfluencerCardProps) => {
         </div>
       </div>
 
-      {/* Recent Videos */}
+      {/* Recent Videos - 重点展示视频链接 */}
       {recentVideos && recentVideos.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Recent Videos</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">🎥 Recent Related Videos</h4>
           <div className="space-y-2">
             {recentVideos.slice(0, 3).map((video) => (
-              <div key={video.videoId} className="flex items-start space-x-3 p-2 bg-gray-50 rounded">
+              <div key={video.videoId} className="flex items-start space-x-3 p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
                 <img
                   src={video.thumbnailUrl || '/placeholder-video.png'}
                   alt={video.title}
@@ -105,13 +105,27 @@ export const InfluencerCard = ({ influencer }: InfluencerCardProps) => {
                   }}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900 line-clamp-2 leading-tight">
+                  <a 
+                    href={`https://www.youtube.com/watch?v=${video.videoId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-gray-900 line-clamp-2 leading-tight hover:text-primary-600 transition-colors font-medium block"
+                  >
                     {video.title}
-                  </p>
+                  </a>
                   <div className="flex items-center space-x-2 mt-1 text-xs text-gray-500">
                     <span>{formatNumber(video.viewCount)} views</span>
                     <span>•</span>
                     <span>{formatDate(video.publishedAt)}</span>
+                    <span>•</span>
+                    <a 
+                      href={`https://www.youtube.com/watch?v=${video.videoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-600 hover:text-primary-700 font-medium"
+                    >
+                      Watch →
+                    </a>
                   </div>
                 </div>
               </div>
