@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { SearchForm } from './components/SearchForm';
-import { ResultsList } from './components/ResultsList';
 import { VideoResultsList } from './components/VideoResultsList';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
@@ -11,7 +10,7 @@ import { api, ApiError } from './utils/api';
 import { SettingsService } from './services/settings.service';
 import { YouTubeService } from './services/youtube.service';
 import { PromptSelector } from './config/prompts';
-import type { InfluencerResult, VideoResult, SearchFilters } from './types';
+import type { VideoResult, SearchFilters } from './types';
 
 function App() {
   const [results, setResults] = useState<VideoResult[]>([]);

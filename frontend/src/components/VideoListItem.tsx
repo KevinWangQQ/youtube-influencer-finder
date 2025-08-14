@@ -12,7 +12,6 @@ export const VideoListItem = ({ video }: VideoListItemProps) => {
     publishedAt,
     viewCount,
     likeCount,
-    commentCount,
     duration,
     thumbnailUrl,
     videoUrl,

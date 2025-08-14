@@ -761,7 +761,7 @@ export class YouTubeService {
         
         for (const searchQuery of searchModes) {
           try {
-            const videos = await this.searchVideosByKeyword(searchQuery, region, Math.min(15, maxResults), originalTopic);
+            const videos = await this.searchVideosByKeyword(searchQuery, region, Math.min(15, maxResults));
             
             videos.forEach(video => {
               if (!allVideos.has(video.videoId)) {
@@ -808,8 +808,7 @@ export class YouTubeService {
   private async searchVideosByKeyword(
     keyword: string, 
     region: string, 
-    maxResults: number,
-    originalTopic?: string
+    maxResults: number
   ): Promise<VideoResult[]> {
     try {
       // 直接搜索视频
@@ -911,7 +910,7 @@ export class YouTubeService {
       
       for (const video of videosData.items) {
         try {
-          const videoData = await this.processVideoData(video, channelMap, keyword, originalTopic);
+          const videoData = await this.processVideoData(video, channelMap, keyword);
           if (videoData) {
             videos.push(videoData);
           }
@@ -931,8 +930,7 @@ export class YouTubeService {
   private async processVideoData(
     video: any,
     channelMap: Map<string, any>,
-    searchKeyword: string,
-    originalTopic?: string
+    searchKeyword: string
   ): Promise<VideoResult | null> {
     try {
       const snippet = video.snippet;
