@@ -1,7 +1,6 @@
 import React from 'react';
 import { Steps, Progress, Card } from 'antd';
 import { 
-  RobotOutlined, 
   SearchOutlined, 
   ThunderboltOutlined, 
   CheckCircleOutlined 

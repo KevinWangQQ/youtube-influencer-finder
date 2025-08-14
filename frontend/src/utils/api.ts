@@ -1,5 +1,4 @@
 import type { SearchRequest, SearchResponse, InfluencerResult, SearchFilters } from '../types';
-import { OpenAIService } from '../services/openai.service';
 import { YouTubeService } from '../services/youtube.service';
 import { SettingsService } from '../services/settings.service';
 
