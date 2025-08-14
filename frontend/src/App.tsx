@@ -7,6 +7,8 @@ import { Header } from './components/Header';
 import { SettingsModal } from './components/SettingsModal';
 import { api, ApiError } from './utils/api';
 import { SettingsService } from './services/settings.service';
+import { YouTubeService } from './services/youtube.service';
+import { PromptSelector } from './config/prompts';
 import type { InfluencerResult, SearchFilters } from './types';
 
 function App() {
@@ -17,16 +19,42 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [hasValidKeys, setHasValidKeys] = useState(false);
+  const [recommendations, setRecommendations] = useState<string[]>([]);
 
   useEffect(() => {
     // Check if user has valid API keys on app load
     setHasValidKeys(SettingsService.hasRequiredKeys());
+    
+    // 清理过期和损坏的缓存数据
+    YouTubeService.clearExpiredCache();
+    
+    // 清理所有搜索缓存（临时解决方案，用于修复缓存bug）
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('search_') || key.startsWith('keywords_')) {
+        localStorage.removeItem(key);
+        console.log(`Cleared cache: ${key}`);
+      }
+    });
   }, []);
 
   const handleSearch = async (topic: string, filters: SearchFilters) => {
     setLoading(true);
     setError(null);
     setHasSearched(true);
+
+    // 检测品牌并设置推荐内容
+    const detectedBrand = PromptSelector.detectBrand(topic);
+    console.log(`🔍 Searching for: "${topic}"`);
+    console.log(`🏷️ Detected brand: ${detectedBrand || 'none'}`);
+    
+    if (detectedBrand) {
+      const brandRecommendations = PromptSelector.getBrandRecommendations(detectedBrand);
+      setRecommendations(brandRecommendations);
+      console.log(`💡 Brand recommendations:`, brandRecommendations);
+    } else {
+      setRecommendations([]);
+    }
 
     try {
       const searchRequest = {
@@ -115,6 +143,32 @@ function App() {
                   >
                     {keyword}
                   </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {recommendations.length > 0 && (
+            <div className="mb-8 card">
+              <h3 className="text-lg font-semibold mb-3">相关机型推荐</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                基于您搜索的内容，这些相关机型可能也值得关注：
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {recommendations.map((recommendation, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSearch(recommendation, {
+                      region: 'US',
+                      minSubscribers: 1000,
+                      minViews: 10000,
+                      maxResults: 50
+                    })}
+                    className="text-left px-3 py-2 bg-gray-100 hover:bg-gray-200 text-sm rounded-lg transition-colors duration-200 border border-gray-200 hover:border-gray-300"
+                    disabled={loading}
+                  >
+                    {recommendation}
+                  </button>
                 ))}
               </div>
             </div>

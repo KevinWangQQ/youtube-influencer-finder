@@ -19,6 +19,33 @@ export class YouTubeService {
     this.apiKey = apiKey;
   }
 
+  // 清理过期缓存和损坏的缓存数据
+  static clearExpiredCache(): void {
+    try {
+      const keys = Object.keys(localStorage);
+      const youtubeKeys = keys.filter(key => key.startsWith('search_'));
+      
+      youtubeKeys.forEach(key => {
+        try {
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            const { data, expiry } = JSON.parse(cached);
+            if (!data || !expiry || Date.now() > expiry) {
+              localStorage.removeItem(key);
+              console.log(`Cleared expired cache: ${key}`);
+            }
+          }
+        } catch (e) {
+          // 清理损坏的缓存数据
+          localStorage.removeItem(key);
+          console.log(`Cleared corrupted cache: ${key}`);
+        }
+      });
+    } catch (error) {
+      console.warn('Failed to clear expired cache:', error);
+    }
+  }
+
   async searchInfluencers(
     keywords: string[], 
     filters: SearchFilters
@@ -385,10 +412,19 @@ export class YouTubeService {
   }
 
   private generateCacheKey(prefix: string, params: any): string {
-    const hash = btoa(JSON.stringify(params))
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .substring(0, 16);
-    return `${prefix}_${hash}`;
+    // 创建更稳定的缓存key，避免hash冲突
+    const paramsStr = JSON.stringify(params, Object.keys(params).sort());
+    
+    // 使用更好的hash函数避免冲突
+    let hash = 0;
+    for (let i = 0; i < paramsStr.length; i++) {
+      const char = paramsStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // 转换为32位整数
+    }
+    
+    // 使用完整的hash而不是截断，减少冲突概率
+    return `${prefix}_${Math.abs(hash).toString(36)}`;
   }
 
   private getFromCache(key: string): any {

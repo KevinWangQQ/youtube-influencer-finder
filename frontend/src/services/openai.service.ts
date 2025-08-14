@@ -26,19 +26,20 @@ export class OpenAIService {
   async expandKeywords(request: KeywordExpansionRequest): Promise<KeywordExpansionResponse> {
     const { topic, maxKeywords = 10, language = 'en', scenario } = request;
 
-    // Check cache first
-    const cacheKey = `keywords_${topic}_${maxKeywords}_${language}`;
+    // 使用智能场景检测和对应的prompt
+    const detectedScenario = scenario || PromptSelector.detectScenario(topic);
+    
+    // Check cache first - 包含scenario以避免不同场景使用相同缓存
+    const cacheKey = `keywords_${topic}_${maxKeywords}_${language}_${detectedScenario}`;
     const cached = this.getFromCache(cacheKey);
     if (cached) {
-      console.log(`Returning cached keywords for topic: ${topic}`);
+      console.log(`Returning cached keywords for topic: ${topic} (scenario: ${detectedScenario})`);
       return cached;
     }
 
     try {
       console.log(`Expanding keywords for topic: ${topic}`);
 
-      // 使用智能场景检测和对应的prompt
-      const detectedScenario = scenario || PromptSelector.detectScenario(topic);
       const prompt = PromptSelector.getPrompt(topic, detectedScenario);
       
       console.log(`Using ${detectedScenario} scenario for topic: ${topic}`);

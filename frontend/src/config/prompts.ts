@@ -77,6 +77,65 @@ export class PromptSelector {
     return templates[scenario].replace('{topic}', topic);
   }
 
+  // 品牌检测 - 识别搜索中的主要品牌
+  static detectBrand(topic: string): string | null {
+    const lowerTopic = topic.toLowerCase();
+    
+    const brands = {
+      'tplink': ['tplink', 'tp-link', 'archer', 'deco', 'omada', 'kasa', 'tapo'],
+      'netgear': ['netgear', 'nighthawk', 'orbi', 'arlo'],
+      'linksys': ['linksys', 'velop', 'max-stream'],
+      'asus': ['asus', 'rog', 'aimesh', 'asuswrt'],
+      'ubiquiti': ['ubiquiti', 'unifi', 'amplifi', 'dream machine'],
+      'google': ['google nest', 'nest wifi', 'google wifi'],
+      'amazon': ['eero', 'amazon eero'],
+      'cisco': ['cisco', 'meraki'],
+      'dlink': ['d-link', 'dlink', 'dir-'],
+      'xiaomi': ['xiaomi', 'mi router', 'redmi'],
+      'huawei': ['huawei', 'honor router']
+    };
+    
+    for (const [brand, keywords] of Object.entries(brands)) {
+      if (keywords.some(keyword => lowerTopic.includes(keyword))) {
+        return brand;
+      }
+    }
+    
+    return null;
+  }
+
+  // 获取品牌相关机型推荐
+  static getBrandRecommendations(brand: string): string[] {
+    const recommendations: Record<string, string[]> = {
+      'tplink': [
+        'TP-Link Archer AX6000', 'TP-Link Deco X60', 'TP-Link Archer AX73',
+        'TP-Link Omada EAP660 HD', 'TP-Link Kasa Smart Switch', 'TP-Link Tapo Camera'
+      ],
+      'netgear': [
+        'Netgear Nighthawk AX12', 'Netgear Orbi AX6000', 'Netgear Nighthawk Pro Gaming',
+        'Netgear RAX200', 'Netgear Arlo Pro 4', 'Netgear Nighthawk M5'
+      ],
+      'linksys': [
+        'Linksys Velop AX4200', 'Linksys MX10', 'Linksys EA9500',
+        'Linksys Max-Stream AC2200', 'Linksys Velop MX5300'
+      ],
+      'asus': [
+        'ASUS ROG Rapture GT-AX11000', 'ASUS AX6000', 'ASUS ZenWiFi AX6600',
+        'ASUS RT-AX88U', 'ASUS AiMesh AX5700'
+      ],
+      'google': [
+        'Google Nest Wifi Pro 6E', 'Google Nest Wifi', 'Google Nest Hub Max',
+        'Google Nest Thermostat', 'Google Nest Doorbell'
+      ],
+      'amazon': [
+        'Amazon eero Pro 6E', 'Amazon eero 6+', 'Amazon eero Pro 6',
+        'Amazon Echo Dot', 'Amazon Fire TV Stick'
+      ]
+    };
+    
+    return recommendations[brand] || [];
+  }
+
   // 智能场景检测 - 根据topic内容自动选择最合适的prompt
   static detectScenario(topic: string): 'general' | 'tplink' | 'tech' | 'smart_home' {
     const lowerTopic = topic.toLowerCase();
