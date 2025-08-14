@@ -5,6 +5,7 @@ import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
 import { Header } from './components/Header';
 import { SettingsModal } from './components/SettingsModal';
+import { SearchProgress } from './components/SearchProgress';
 import { api, ApiError } from './utils/api';
 import { SettingsService } from './services/settings.service';
 import { YouTubeService } from './services/youtube.service';
@@ -20,6 +21,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [hasValidKeys, setHasValidKeys] = useState(false);
   const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [searchStep, setSearchStep] = useState<'idle' | 'expanding' | 'searching' | 'processing' | 'complete'>('idle');
 
   useEffect(() => {
     // Check if user has valid API keys on app load
@@ -42,6 +44,16 @@ function App() {
     setLoading(true);
     setError(null);
     setHasSearched(true);
+    setSearchStep('expanding');
+
+    // 每次搜索前清理相关缓存，确保重新调用API
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.includes(topic.toLowerCase()) || key.startsWith('search_') || key.startsWith('keywords_')) {
+        localStorage.removeItem(key);
+        console.log(`🗑️ Cleared cache: ${key}`);
+      }
+    });
 
     // 检测品牌并设置推荐内容
     const detectedBrand = PromptSelector.detectBrand(topic);
@@ -57,6 +69,9 @@ function App() {
     }
 
     try {
+      setSearchStep('searching');
+      console.log(`🎯 Step: Searching YouTube channels...`);
+      
       const searchRequest = {
         topic,
         filters: {
@@ -69,11 +84,17 @@ function App() {
 
       const response = await api.searchInfluencers(searchRequest);
       
+      setSearchStep('processing');
+      console.log(`⚡ Step: Processing results...`);
+      
       setResults(response.results);
       setExpandedKeywords(response.expandedKeywords);
+      setSearchStep('complete');
       
       if (response.results.length === 0) {
         setError('No influencers found matching your criteria. Try adjusting your filters or using different keywords.');
+      } else {
+        console.log(`✅ Search completed! Found ${response.results.length} influencers`);
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -84,6 +105,7 @@ function App() {
       setResults([]);
     } finally {
       setLoading(false);
+      setSearchStep('idle');
     }
   };
 
@@ -173,6 +195,11 @@ function App() {
               </div>
             </div>
           )}
+
+          <SearchProgress 
+            currentStep={searchStep} 
+            visible={loading} 
+          />
 
           {loading && <LoadingSpinner />}
           

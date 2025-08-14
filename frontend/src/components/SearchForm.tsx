@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Form, Input, Button, Card, Select, InputNumber, Space, Collapse } from 'antd';
+import { SearchOutlined, SettingOutlined } from '@ant-design/icons';
 import type { SearchFilters } from '../types';
 
 interface SearchFormProps {
@@ -7,179 +9,181 @@ interface SearchFormProps {
 }
 
 export const SearchForm = ({ onSearch, loading }: SearchFormProps) => {
+  const [form] = Form.useForm();
   const [topic, setTopic] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [filters, setFilters] = useState<SearchFilters>({
-    region: 'US',
-    minSubscribers: 1000,
-    minViews: 10000,
-    maxResults: 50
-  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (values: any) => {
     if (topic.trim()) {
+      const filters: SearchFilters = {
+        region: values.region || 'US',
+        minSubscribers: values.minSubscribers || 1000,
+        minViews: values.minViews || 10000,
+        maxResults: values.maxResults || 50
+      };
       onSearch(topic.trim(), filters);
     }
   };
 
-  const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
   const regions = [
-    { code: 'US', name: 'United States' },
-    { code: 'GB', name: 'United Kingdom' },
-    { code: 'CA', name: 'Canada' },
-    { code: 'AU', name: 'Australia' },
-    { code: 'DE', name: 'Germany' },
-    { code: 'FR', name: 'France' },
-    { code: 'ES', name: 'Spain' },
-    { code: 'IT', name: 'Italy' },
-    { code: 'JP', name: 'Japan' },
-    { code: 'KR', name: 'South Korea' },
-    { code: 'IN', name: 'India' },
-    { code: 'BR', name: 'Brazil' },
+    { value: 'US', label: 'United States' },
+    { value: 'GB', label: 'United Kingdom' },
+    { value: 'CA', label: 'Canada' },
+    { value: 'AU', label: 'Australia' },
+    { value: 'DE', label: 'Germany' },
+    { value: 'FR', label: 'France' },
+    { value: 'ES', label: 'Spain' },
+    { value: 'IT', label: 'Italy' },
+    { value: 'JP', label: 'Japan' },
+    { value: 'KR', label: 'South Korea' },
+    { value: 'IN', label: 'India' },
+    { value: 'BR', label: 'Brazil' },
   ];
 
   return (
-    <div className="card mb-8">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Main Search Input */}
-        <div>
-          <label htmlFor="topic" className="block text-sm font-medium text-gray-700 mb-2">
-            Search Topic
-          </label>
-          <div className="flex space-x-3">
-            <input
-              id="topic"
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g., fitness, cooking, tech reviews, beauty, gaming..."
-              className="input-field flex-1"
-              required
-              disabled={loading}
-            />
-            <button
-              type="submit"
-              disabled={loading || !topic.trim()}
-              className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Searching...</span>
-                </div>
-              ) : (
-                'Search'
-              )}
-            </button>
-          </div>
+    <Card 
+      className="mb-8 search-form-card" 
+      style={{ 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        border: 'none',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
+      }}
+    >
+      <Form
+        form={form}
+        onFinish={handleSubmit}
+        layout="vertical"
+        initialValues={{
+          region: 'US',
+          minSubscribers: 1000,
+          minViews: 10000,
+          maxResults: 50
+        }}
+      >
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold text-white mb-2">
+            🔍 AI-Powered Influencer Discovery
+          </h2>
+          <p className="text-white/80">
+            Find the perfect YouTube influencers for your brand with intelligent keyword expansion
+          </p>
         </div>
 
-        {/* Advanced Filters Toggle */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center space-x-2 text-sm text-primary-600 hover:text-primary-700"
+        <Space.Compact style={{ width: '100%' }} size="large">
+          <Input
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="输入搜索主题，如：TP-Link路由器、美食博主、科技评测..."
+            size="large"
+            style={{ 
+              borderRadius: '8px 0 0 8px',
+              fontSize: '16px'
+            }}
+            disabled={loading}
+            required
+          />
+          <Button
+            type="primary"
+            size="large"
+            icon={<SearchOutlined />}
+            loading={loading}
+            disabled={!topic.trim()}
+            htmlType="submit"
+            style={{
+              borderRadius: '0 8px 8px 0',
+              background: '#1890ff',
+              borderColor: '#1890ff',
+              minWidth: '120px'
+            }}
           >
-            <span>{showAdvanced ? 'Hide' : 'Show'} Advanced Filters</span>
-            <svg 
-              className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-        </div>
+            {loading ? '搜索中...' : '搜索'}
+          </Button>
+        </Space.Compact>
 
-        {/* Advanced Filters */}
-        {showAdvanced && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
-            <div>
-              <label htmlFor="region" className="block text-sm font-medium text-gray-700 mb-1">
-                Region
-              </label>
-              <select
-                id="region"
-                value={filters.region}
-                onChange={(e) => handleFilterChange('region', e.target.value)}
-                className="input-field"
-                disabled={loading}
-              >
-                {regions.map(region => (
-                  <option key={region.code} value={region.code}>
-                    {region.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <Collapse 
+          ghost
+          size="small"
+          className="mt-4"
+          items={[
+            {
+              key: 'advanced',
+              label: (
+                <span className="text-white/90 flex items-center">
+                  <SettingOutlined className="mr-2" />
+                  高级筛选选项
+                </span>
+              ),
+              children: (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Form.Item 
+                    label={<span className="text-white">地区</span>} 
+                    name="region"
+                  >
+                    <Select
+                      options={regions}
+                      placeholder="选择地区"
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
 
-            <div>
-              <label htmlFor="minSubscribers" className="block text-sm font-medium text-gray-700 mb-1">
-                Min Subscribers
-              </label>
-              <select
-                id="minSubscribers"
-                value={filters.minSubscribers}
-                onChange={(e) => handleFilterChange('minSubscribers', parseInt(e.target.value))}
-                className="input-field"
-                disabled={loading}
-              >
-                <option value={0}>Any</option>
-                <option value={1000}>1K+</option>
-                <option value={10000}>10K+</option>
-                <option value={100000}>100K+</option>
-                <option value={1000000}>1M+</option>
-              </select>
-            </div>
+                  <Form.Item 
+                    label={<span className="text-white">最少订阅数</span>} 
+                    name="minSubscribers"
+                  >
+                    <InputNumber
+                      min={0}
+                      max={10000000}
+                      step={1000}
+                      placeholder="1000"
+                      style={{ width: '100%' }}
+                      formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    />
+                  </Form.Item>
 
-            <div>
-              <label htmlFor="minViews" className="block text-sm font-medium text-gray-700 mb-1">
-                Min Video Views
-              </label>
-              <select
-                id="minViews"
-                value={filters.minViews}
-                onChange={(e) => handleFilterChange('minViews', parseInt(e.target.value))}
-                className="input-field"
-                disabled={loading}
-              >
-                <option value={0}>Any</option>
-                <option value={1000}>1K+</option>
-                <option value={10000}>10K+</option>
-                <option value={100000}>100K+</option>
-                <option value={1000000}>1M+</option>
-              </select>
-            </div>
+                  <Form.Item 
+                    label={<span className="text-white">最少播放量</span>} 
+                    name="minViews"
+                  >
+                    <InputNumber
+                      min={0}
+                      max={1000000000}
+                      step={10000}
+                      placeholder="10000"
+                      style={{ width: '100%' }}
+                      formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    />
+                  </Form.Item>
 
-            <div>
-              <label htmlFor="maxResults" className="block text-sm font-medium text-gray-700 mb-1">
-                Max Results
-              </label>
-              <select
-                id="maxResults"
-                value={filters.maxResults}
-                onChange={(e) => handleFilterChange('maxResults', parseInt(e.target.value))}
-                className="input-field"
-                disabled={loading}
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-          </div>
-        )}
-      </form>
-    </div>
+                  <Form.Item 
+                    label={<span className="text-white">最大结果数</span>} 
+                    name="maxResults"
+                  >
+                    <InputNumber
+                      min={1}
+                      max={100}
+                      placeholder="50"
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                </div>
+              )
+            }
+          ]}
+        />
+      </Form>
+
+      <style>{`
+        .search-form-card .ant-collapse-ghost .ant-collapse-item {
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .search-form-card .ant-collapse-ghost .ant-collapse-header {
+          padding: 12px 0;
+        }
+        
+        .search-form-card .ant-collapse-content-box {
+          padding: 16px 0 0 0;
+        }
+      `}</style>
+    </Card>
   );
 };
