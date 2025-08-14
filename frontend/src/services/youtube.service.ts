@@ -19,6 +19,66 @@ export class YouTubeService {
     this.apiKey = apiKey;
   }
 
+  // 测试API连接状态
+  async testApiConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    try {
+      console.log('🔧 Testing YouTube API connection...');
+      
+      // 使用简单的搜索请求测试API
+      const testUrl = new URL('https://www.googleapis.com/youtube/v3/search');
+      testUrl.searchParams.set('part', 'snippet');
+      testUrl.searchParams.set('q', 'test');
+      testUrl.searchParams.set('type', 'video');
+      testUrl.searchParams.set('maxResults', '1');
+      testUrl.searchParams.set('key', this.apiKey);
+
+      const response = await fetch(testUrl.toString());
+      
+      if (response.ok) {
+        console.log('✅ YouTube API connection successful');
+        return {
+          success: true,
+          message: '✅ YouTube API连接正常'
+        };
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ YouTube API connection failed:', errorData);
+        
+        let message = '❌ YouTube API连接失败';
+        if (response.status === 403) {
+          const error = errorData?.error;
+          if (error?.message?.includes('quotaExceeded')) {
+            message = '🚫 YouTube API配额已用完';
+          } else if (error?.message?.includes('accessNotConfigured')) {
+            message = '🔧 YouTube Data API v3未启用';
+          } else if (error?.message?.includes('keyInvalid')) {
+            message = '🔑 YouTube API密钥无效';
+          } else {
+            message = '🚫 YouTube API访问被拒绝';
+          }
+        } else if (response.status === 400) {
+          message = '❌ API请求参数错误';
+        }
+        
+        return {
+          success: false,
+          message,
+          details: {
+            status: response.status,
+            error: errorData
+          }
+        };
+      }
+    } catch (error) {
+      console.error('❌ YouTube API test failed:', error);
+      return {
+        success: false,
+        message: '❌ 网络连接失败或API不可用',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' }
+      };
+    }
+  }
+
   // 清理过期缓存和损坏的缓存数据
   static clearExpiredCache(): void {
     try {
@@ -48,7 +108,8 @@ export class YouTubeService {
 
   async searchInfluencers(
     keywords: string[], 
-    filters: SearchFilters
+    filters: SearchFilters,
+    originalTopic?: string
   ): Promise<InfluencerResult[]> {
     const {
       region = 'US',
@@ -69,13 +130,20 @@ export class YouTubeService {
 
     try {
       console.log(`Searching YouTube influencers with keywords: ${keywords.join(', ')}`);
+      if (originalTopic) {
+        console.log(`🎯 Original topic: "${originalTopic}" - prioritizing related keywords`);
+      }
 
       const allChannels = new Map<string, InfluencerResult>();
 
-      // Search with multiple keywords
-      for (const keyword of keywords.slice(0, 5)) { // Limit to 5 keywords to avoid quota issues
+      // 优化关键词优先级 - 包含原始产品名称的关键词优先搜索
+      const prioritizedKeywords = this.prioritizeKeywords(keywords, originalTopic);
+      console.log(`📊 Keyword priority order: ${prioritizedKeywords.join(', ')}`);
+
+      // Search with multiple keywords (prioritized order)
+      for (const keyword of prioritizedKeywords.slice(0, 5)) { // Limit to 5 keywords to avoid quota issues
         try {
-          const channels = await this.searchByKeyword(keyword, region, Math.min(10, maxResults));
+          const channels = await this.searchByKeyword(keyword, region, Math.min(10, maxResults), originalTopic);
           
           channels.forEach(channel => {
             if (!allChannels.has(channel.channelId)) {
@@ -125,7 +193,8 @@ export class YouTubeService {
   private async searchByKeyword(
     keyword: string, 
     region: string, 
-    maxResults: number
+    maxResults: number,
+    originalTopic?: string
   ): Promise<InfluencerResult[]> {
     try {
       // Search for videos first
@@ -139,9 +208,48 @@ export class YouTubeService {
       searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
       searchUrl.searchParams.set('key', this.apiKey);
 
+      console.log(`🔍 Searching YouTube for: "${keyword}"`);
+      console.log(`📡 API URL: ${searchUrl.toString().replace(this.apiKey, 'API_KEY_HIDDEN')}`);
+      
       const searchResponse = await fetch(searchUrl.toString());
+      
       if (!searchResponse.ok) {
-        throw new Error(`YouTube search failed: ${searchResponse.status}`);
+        let errorMessage = `YouTube API Error ${searchResponse.status}`;
+        let userMessage = '';
+        
+        try {
+          const errorData = await searchResponse.json();
+          console.error('📱 YouTube API Error Details:', errorData);
+          
+          if (searchResponse.status === 403) {
+            const error = errorData?.error;
+            if (error?.message?.includes('quotaExceeded')) {
+              userMessage = '🚫 YouTube API 配额已用完，请稍后重试或检查API密钥限制。';
+              errorMessage = 'YouTube API quota exceeded';
+            } else if (error?.message?.includes('accessNotConfigured')) {
+              userMessage = '🔧 YouTube Data API v3 未启用，请在Google Cloud Console中启用该API。';
+              errorMessage = 'YouTube Data API v3 not enabled';
+            } else if (error?.message?.includes('keyInvalid')) {
+              userMessage = '🔑 YouTube API密钥无效，请检查设置中的API密钥是否正确。';
+              errorMessage = 'Invalid YouTube API key';
+            } else {
+              userMessage = '🚫 YouTube API访问被拒绝，请检查API密钥权限设置。';
+              errorMessage = 'YouTube API access forbidden';
+            }
+          } else if (searchResponse.status === 400) {
+            userMessage = '❌ 搜索参数无效，请尝试不同的关键词。';
+            errorMessage = 'Invalid search parameters';
+          } else {
+            userMessage = `🌐 YouTube API请求失败 (${searchResponse.status})，请稍后重试。`;
+          }
+        } catch (e) {
+          userMessage = `🌐 YouTube API请求失败 (${searchResponse.status})，请稍后重试。`;
+        }
+        
+        const error = new Error(userMessage || errorMessage);
+        (error as any).status = searchResponse.status;
+        (error as any).userMessage = userMessage;
+        throw error;
       }
 
       const searchData: YouTubeApiResponse = await searchResponse.json();
@@ -169,7 +277,42 @@ export class YouTubeService {
 
       const channelsResponse = await fetch(channelsUrl.toString());
       if (!channelsResponse.ok) {
-        throw new Error(`YouTube channels API failed: ${channelsResponse.status}`);
+        let errorMessage = `YouTube Channels API Error ${channelsResponse.status}`;
+        let userMessage = '';
+        
+        try {
+          const errorData = await channelsResponse.json();
+          console.error('📱 YouTube Channels API Error Details:', errorData);
+          
+          if (channelsResponse.status === 403) {
+            const error = errorData?.error;
+            if (error?.message?.includes('quotaExceeded')) {
+              userMessage = '🚫 YouTube API 配额已用完，请稍后重试或检查API密钥限制。';
+              errorMessage = 'YouTube API quota exceeded';
+            } else if (error?.message?.includes('accessNotConfigured')) {
+              userMessage = '🔧 YouTube Data API v3 未启用，请在Google Cloud Console中启用该API。';
+              errorMessage = 'YouTube Data API v3 not enabled';
+            } else if (error?.message?.includes('keyInvalid')) {
+              userMessage = '🔑 YouTube API密钥无效，请检查设置中的API密钥是否正确。';
+              errorMessage = 'Invalid YouTube API key';
+            } else {
+              userMessage = '🚫 YouTube API访问被拒绝，请检查API密钥权限设置。';
+              errorMessage = 'YouTube API access forbidden';
+            }
+          } else if (channelsResponse.status === 400) {
+            userMessage = '❌ 频道查询参数无效，请尝试不同的搜索条件。';
+            errorMessage = 'Invalid channel parameters';
+          } else {
+            userMessage = `🌐 YouTube频道API请求失败 (${channelsResponse.status})，请稍后重试。`;
+          }
+        } catch (e) {
+          userMessage = `🌐 YouTube频道API请求失败 (${channelsResponse.status})，请稍后重试。`;
+        }
+        
+        const error = new Error(userMessage || errorMessage);
+        (error as any).status = channelsResponse.status;
+        (error as any).userMessage = userMessage;
+        throw error;
       }
 
       const channelsData: YouTubeApiResponse = await channelsResponse.json();
@@ -183,7 +326,7 @@ export class YouTubeService {
       
       for (const channel of channelsData.items) {
         try {
-          const channelData = await this.processChannel(channel, keyword);
+          const channelData = await this.processChannel(channel, keyword, originalTopic);
           if (channelData) {
             channels.push(channelData);
           }
@@ -200,7 +343,7 @@ export class YouTubeService {
     }
   }
 
-  private async processChannel(channel: any, searchKeyword: string): Promise<InfluencerResult | null> {
+  private async processChannel(channel: any, searchKeyword: string, originalTopic?: string): Promise<InfluencerResult | null> {
     try {
       const snippet = channel.snippet;
       const statistics = channel.statistics;
@@ -227,7 +370,8 @@ export class YouTubeService {
         snippet.description || '',
         searchKeyword,
         subscriberCount,
-        recentVideos
+        recentVideos,
+        originalTopic
       );
 
       return {
@@ -286,6 +430,26 @@ export class YouTubeService {
 
       const videosResponse = await fetch(videosUrl.toString());
       if (!videosResponse.ok) {
+        console.warn(`YouTube Videos API error ${videosResponse.status} for channel ${channelId}`);
+        
+        try {
+          const errorData = await videosResponse.json();
+          console.error('📱 YouTube Videos API Error Details:', errorData);
+          
+          if (videosResponse.status === 403) {
+            const error = errorData?.error;
+            if (error?.message?.includes('quotaExceeded')) {
+              console.warn('🚫 API quota exceeded while fetching videos');
+            } else if (error?.message?.includes('accessNotConfigured')) {
+              console.warn('🔧 YouTube Data API v3 not enabled');
+            } else if (error?.message?.includes('keyInvalid')) {
+              console.warn('🔑 Invalid API key while fetching videos');
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to parse video API error response');
+        }
+        
         return [];
       }
 
@@ -331,7 +495,8 @@ export class YouTubeService {
     channelDescription: string,
     searchKeyword: string,
     subscriberCount: number,
-    recentVideos: RecentVideo[]
+    recentVideos: RecentVideo[],
+    originalTopic?: string
   ): number {
     let score = 0;
 
@@ -372,7 +537,45 @@ export class YouTubeService {
     else if (subscriberCount > 1000) score += 10;
     else score += 5;
 
-    return Math.min(100, Math.round(score));
+    // 原始产品topic额外评分 (最多20分额外加分)
+    if (originalTopic) {
+      const originalTopicLower = originalTopic.toLowerCase();
+      const originalWords = originalTopicLower.split(' ').filter(word => word.length > 2);
+      
+      // 频道标题包含完整原始topic名称 - 最高优先级
+      if (titleLower.includes(originalTopicLower)) {
+        score += 20;
+        console.log(`🎯 Channel "${channelTitle}" contains original topic "${originalTopic}" - bonus +20`);
+      } else {
+        // 频道标题包含原始topic中的重要词汇
+        let wordMatches = 0;
+        originalWords.forEach(word => {
+          if (titleLower.includes(word)) {
+            wordMatches++;
+          }
+        });
+        if (wordMatches > 0) {
+          const wordBonus = Math.min(15, (wordMatches / originalWords.length) * 15);
+          score += wordBonus;
+          console.log(`🎯 Channel "${channelTitle}" matches ${wordMatches}/${originalWords.length} topic words - bonus +${wordBonus.toFixed(1)}`);
+        }
+      }
+      
+      // 视频标题包含原始topic的额外加分
+      let videoTopicMatches = 0;
+      recentVideos.forEach(video => {
+        if (video.title.toLowerCase().includes(originalTopicLower)) {
+          videoTopicMatches++;
+        }
+      });
+      if (videoTopicMatches > 0) {
+        const videoBonus = Math.min(10, videoTopicMatches * 3);
+        score += videoBonus;
+        console.log(`🎯 Channel has ${videoTopicMatches} videos about "${originalTopic}" - bonus +${videoBonus}`);
+      }
+    }
+
+    return Math.min(120, Math.round(score)); // 提高上限到120分，因为有原始topic加分
   }
 
   private calculateVideoRelevanceScore(videoTitle: string, searchKeyword: string): number {
@@ -452,5 +655,50 @@ export class YouTubeService {
     } catch (error) {
       console.error('Cache set error:', error);
     }
+  }
+
+  // 关键词优先级排序 - 包含原始产品名称的关键词优先
+  private prioritizeKeywords(keywords: string[], originalTopic?: string): string[] {
+    if (!originalTopic) {
+      return keywords; // 如果没有原始topic，返回原数组
+    }
+
+    const topicLower = originalTopic.toLowerCase();
+    const topicWords = topicLower.split(' ').filter(word => word.length > 2);
+    
+    // 计算每个关键词与原始topic的相关性分数
+    const keywordScores = keywords.map(keyword => {
+      const keywordLower = keyword.toLowerCase();
+      let score = 0;
+      
+      // 精确匹配原始topic得最高分
+      if (keywordLower.includes(topicLower)) {
+        score += 100;
+      }
+      
+      // 包含原始topic中的重要词汇
+      topicWords.forEach(word => {
+        if (keywordLower.includes(word)) {
+          score += 20;
+        }
+      });
+      
+      // 以原始topic开头的关键词额外加分
+      if (keywordLower.startsWith(topicLower)) {
+        score += 50;
+      }
+      
+      return { keyword, score };
+    });
+    
+    // 按分数降序排序，然后提取关键词
+    const sortedKeywords = keywordScores
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.keyword);
+    
+    console.log(`🎯 Keyword prioritization for "${originalTopic}":`, 
+      sortedKeywords.map((kw, i) => `${i + 1}. ${kw} (score: ${keywordScores.find(k => k.keyword === kw)?.score})`));
+    
+    return sortedKeywords;
   }
 }

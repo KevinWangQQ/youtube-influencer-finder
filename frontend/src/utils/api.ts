@@ -6,16 +6,22 @@ import { SettingsService } from '../services/settings.service';
 export class ApiError extends Error {
   public code: string;
   public statusCode: number;
+  public details?: any;
+  public userMessage?: string;
   
   constructor(
     code: string,
     message: string,
-    statusCode: number = 500
+    statusCode: number = 500,
+    details?: any,
+    userMessage?: string
   ) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.statusCode = statusCode;
+    this.details = details;
+    this.userMessage = userMessage;
   }
 }
 
@@ -52,7 +58,8 @@ export const api = {
       };
       const influencers = await youtubeService.searchInfluencers(
         keywordResponse.expandedKeywords,
-        searchFilters
+        searchFilters,
+        request.topic
       );
 
       // Step 3: Generate search ID for potential future use
@@ -75,22 +82,36 @@ export const api = {
         throw error;
       }
       
-      // Handle specific API errors
+      // Handle specific API errors with detailed information
+      if (error instanceof Error && (error as any).status) {
+        const status = (error as any).status;
+        const userMessage = (error as any).userMessage;
+        const details = (error as any).details;
+        
+        throw new ApiError(
+          `API_ERROR_${status}`,
+          userMessage || error.message,
+          status,
+          details,
+          userMessage
+        );
+      }
+      
       if (error instanceof Error) {
         if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-          throw new ApiError('INVALID_API_KEY', 'Invalid API key. Please check your settings.');
+          throw new ApiError('INVALID_API_KEY', 'Invalid API key. Please check your settings.', 401);
         }
         
         if (error.message.includes('403') || error.message.includes('quota')) {
-          throw new ApiError('API_QUOTA_EXCEEDED', 'API quota exceeded. Please try again later.');
+          throw new ApiError('API_QUOTA_EXCEEDED', 'API quota exceeded. Please try again later.', 403);
         }
         
         if (error.message.includes('429')) {
-          throw new ApiError('RATE_LIMITED', 'Rate limit exceeded. Please wait a moment and try again.');
+          throw new ApiError('RATE_LIMITED', 'Rate limit exceeded. Please wait a moment and try again.', 429);
         }
       }
       
-      throw new ApiError('SEARCH_ERROR', 'Failed to search influencers. Please try again.');
+      throw new ApiError('SEARCH_ERROR', 'Failed to search influencers. Please try again.', 500);
     }
   },
 

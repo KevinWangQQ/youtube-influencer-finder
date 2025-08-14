@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { SettingsService, type AppSettings } from '../services/settings.service';
+import { OpenAIService } from '../services/openai.service';
+import { YouTubeService } from '../services/youtube.service';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,6 +17,10 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
   const [showKeys, setShowKeys] = useState({
     openai: false,
     youtube: false
+  });
+  const [testStatus, setTestStatus] = useState({
+    openai: { testing: false, result: null as { success: boolean; message: string } | null },
+    youtube: { testing: false, result: null as { success: boolean; message: string } | null }
   });
 
   useEffect(() => {
@@ -41,6 +47,53 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  const testApiConnection = async (api: 'openai' | 'youtube') => {
+    const apiKey = api === 'openai' ? settings.openaiApiKey : settings.youtubeApiKey;
+    
+    if (!apiKey.trim()) {
+      setTestStatus(prev => ({
+        ...prev,
+        [api]: {
+          testing: false,
+          result: { success: false, message: '请先输入API密钥' }
+        }
+      }));
+      return;
+    }
+
+    setTestStatus(prev => ({
+      ...prev,
+      [api]: { testing: true, result: null }
+    }));
+
+    try {
+      let result;
+      if (api === 'openai') {
+        const openaiService = new OpenAIService(apiKey);
+        result = await openaiService.testApiConnection();
+      } else {
+        const youtubeService = new YouTubeService(apiKey);
+        result = await youtubeService.testApiConnection();
+      }
+      
+      setTestStatus(prev => ({
+        ...prev,
+        [api]: { testing: false, result }
+      }));
+    } catch (error) {
+      setTestStatus(prev => ({
+        ...prev,
+        [api]: {
+          testing: false,
+          result: {
+            success: false,
+            message: `测试失败: ${error instanceof Error ? error.message : '未知错误'}`
+          }
+        }
+      }));
+    }
   };
 
   if (!isOpen) return null;
@@ -90,17 +143,35 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
                 )}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Get your API key from{' '}
-              <a 
-                href="https://platform.openai.com/api-keys" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700"
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-gray-500">
+                Get your API key from{' '}
+                <a 
+                  href="https://platform.openai.com/api-keys" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:text-primary-700"
+                >
+                  OpenAI Platform
+                </a>
+              </p>
+              <button
+                onClick={() => testApiConnection('openai')}
+                disabled={testStatus.openai.testing || !settings.openaiApiKey.trim()}
+                className="text-xs px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                OpenAI Platform
-              </a>
-            </p>
+                {testStatus.openai.testing ? '测试中...' : '测试连接'}
+              </button>
+            </div>
+            {testStatus.openai.result && (
+              <div className={`mt-2 p-2 rounded-md text-xs ${
+                testStatus.openai.result.success 
+                  ? 'bg-green-100 text-green-700 border border-green-200' 
+                  : 'bg-red-100 text-red-700 border border-red-200'
+              }`}>
+                {testStatus.openai.result.message}
+              </div>
+            )}
           </div>
 
           <div>
@@ -132,17 +203,35 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
                 )}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Get your API key from{' '}
-              <a 
-                href="https://console.cloud.google.com/apis/credentials" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700"
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-gray-500">
+                Get your API key from{' '}
+                <a 
+                  href="https://console.cloud.google.com/apis/credentials" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:text-primary-700"
+                >
+                  Google Cloud Console
+                </a>
+              </p>
+              <button
+                onClick={() => testApiConnection('youtube')}
+                disabled={testStatus.youtube.testing || !settings.youtubeApiKey.trim()}
+                className="text-xs px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Google Cloud Console
-              </a>
-            </p>
+                {testStatus.youtube.testing ? '测试中...' : '测试连接'}
+              </button>
+            </div>
+            {testStatus.youtube.result && (
+              <div className={`mt-2 p-2 rounded-md text-xs ${
+                testStatus.youtube.result.success 
+                  ? 'bg-green-100 text-green-700 border border-green-200' 
+                  : 'bg-red-100 text-red-700 border border-red-200'
+              }`}>
+                {testStatus.youtube.result.message}
+              </div>
+            )}
           </div>
 
           <div className="bg-gray-50 p-4 rounded-lg">

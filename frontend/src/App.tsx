@@ -16,6 +16,7 @@ function App() {
   const [results, setResults] = useState<InfluencerResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<any>(null);
   const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -98,9 +99,15 @@ function App() {
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(err.userMessage || err.message);
+        setErrorDetails({
+          status: err.statusCode,
+          error: err.details,
+          userMessage: err.userMessage
+        });
       } else {
         setError('An unexpected error occurred. Please try again.');
+        setErrorDetails(null);
       }
       setResults([]);
     } finally {
@@ -129,9 +136,15 @@ function App() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(`Export failed: ${err.message}`);
+        setError(`Export failed: ${err.userMessage || err.message}`);
+        setErrorDetails({
+          status: err.statusCode,
+          error: err.details,
+          userMessage: err.userMessage
+        });
       } else {
         setError('Failed to export data. Please try again.');
+        setErrorDetails(null);
       }
     } finally {
       setLoading(false);
@@ -203,7 +216,17 @@ function App() {
 
           {loading && <LoadingSpinner />}
           
-          {error && <ErrorMessage message={error} onDismiss={() => setError(null)} />}
+          {error && (
+            <ErrorMessage 
+              message={error} 
+              onDismiss={() => {
+                setError(null);
+                setErrorDetails(null);
+              }}
+              details={errorDetails}
+              showDebugInfo={true}
+            />
+          )}
           
           {!loading && hasSearched && results.length > 0 && (
             <ResultsList 

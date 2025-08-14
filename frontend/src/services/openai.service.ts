@@ -4,7 +4,7 @@ interface KeywordExpansionRequest {
   topic: string;
   maxKeywords?: number;
   language?: string;
-  scenario?: 'general' | 'tplink' | 'tech' | 'smart_home';
+  scenario?: 'general' | 'tplink' | 'tech' | 'smart_home' | 'product_focused';
 }
 
 interface KeywordExpansionResponse {
@@ -21,6 +21,71 @@ export class OpenAIService {
       throw new Error('OpenAI API key is required');
     }
     this.apiKey = apiKey;
+  }
+
+  // 测试OpenAI API连接状态
+  async testApiConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+    try {
+      console.log('🔧 Testing OpenAI API connection...');
+      
+      // 使用简单的聊天请求测试API
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "user",
+              content: "Hello"
+            }
+          ],
+          max_tokens: 5,
+          temperature: 0.1
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ OpenAI API connection successful');
+        return {
+          success: true,
+          message: '✅ OpenAI API连接正常'
+        };
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ OpenAI API connection failed:', errorData);
+        
+        let message = '❌ OpenAI API连接失败';
+        if (response.status === 401) {
+          message = '🔑 OpenAI API密钥无效或已过期';
+        } else if (response.status === 429) {
+          message = '🚫 OpenAI API请求频率过高或配额用完';
+        } else if (response.status === 403) {
+          message = '🚫 OpenAI API访问被拒绝';
+        } else if (response.status >= 500) {
+          message = '🌐 OpenAI服务器错误，请稍后重试';
+        }
+        
+        return {
+          success: false,
+          message,
+          details: {
+            status: response.status,
+            error: errorData
+          }
+        };
+      }
+    } catch (error) {
+      console.error('❌ OpenAI API test failed:', error);
+      return {
+        success: false,
+        message: '❌ 网络连接失败或API不可用',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' }
+      };
+    }
   }
 
   async expandKeywords(request: KeywordExpansionRequest): Promise<KeywordExpansionResponse> {

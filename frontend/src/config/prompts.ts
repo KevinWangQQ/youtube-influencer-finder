@@ -61,20 +61,46 @@ Return only the keywords, separated by commas, without explanations.`,
 4. Setup and installation content
 5. Lifestyle and convenience aspects
 
-Return only the keywords, separated by commas, without explanations.`
+Return only the keywords, separated by commas, without explanations.`,
+
+  // 产品聚焦prompt - 专门用于寻找特定产品的评测者
+  PRODUCT_FOCUSED: `You are helping find YouTube influencers who specifically review and discuss the exact product: "{topic}".
+
+CRITICAL: Keep the exact product name "{topic}" in most keywords. DO NOT expand to other products or general categories.
+
+Generate 8-10 specific keywords that YouTubers would use when creating content about "{topic}". Focus on:
+
+1. **Product + Review Terms**:
+   - "{topic} review", "{topic} honest review", "{topic} full review"
+   - "{topic} unboxing", "{topic} first impressions", "{topic} hands on"
+
+2. **Product + Testing Terms**:
+   - "{topic} test", "{topic} speed test", "{topic} performance test"
+   - "{topic} setup", "{topic} installation", "{topic} tutorial"
+
+3. **Product + Comparison Terms**:
+   - "{topic} vs", "{topic} comparison", "{topic} or"
+   - "{topic} worth it", "{topic} should you buy"
+
+4. **Product + Experience Terms**:
+   - "{topic} experience", "{topic} after 1 month", "{topic} long term"
+   - "{topic} problems", "{topic} issues", "{topic} pros and cons"
+
+Return ONLY the keywords separated by commas. Each keyword MUST contain "{topic}" to find influencers who specifically discuss this exact product.`
 };
 
 // Prompt选择器 - 根据场景选择合适的prompt
 export class PromptSelector {
-  static getPrompt(topic: string, scenario: 'general' | 'tplink' | 'tech' | 'smart_home' = 'general'): string {
+  static getPrompt(topic: string, scenario: 'general' | 'tplink' | 'tech' | 'smart_home' | 'product_focused' = 'product_focused'): string {
     const templates = {
       general: PROMPT_TEMPLATES.GENERAL,
       tplink: PROMPT_TEMPLATES.TPLINK_COMPETITOR_ANALYSIS,
       tech: PROMPT_TEMPLATES.TECH_REVIEW,
-      smart_home: PROMPT_TEMPLATES.SMART_HOME
+      smart_home: PROMPT_TEMPLATES.SMART_HOME,
+      product_focused: PROMPT_TEMPLATES.PRODUCT_FOCUSED
     };
 
-    return templates[scenario].replace('{topic}', topic);
+    return templates[scenario].replace(/\{topic\}/g, topic);
   }
 
   // 品牌检测 - 识别搜索中的主要品牌
@@ -137,40 +163,37 @@ export class PromptSelector {
   }
 
   // 智能场景检测 - 根据topic内容自动选择最合适的prompt
-  static detectScenario(topic: string): 'general' | 'tplink' | 'tech' | 'smart_home' {
+  static detectScenario(topic: string): 'general' | 'tplink' | 'tech' | 'smart_home' | 'product_focused' {
     const lowerTopic = topic.toLowerCase();
 
-    // TP-Link相关关键词检测
-    const tplinkKeywords = [
-      'tplink', 'tp-link', 'router', 'wifi', 'mesh', 'networking', 'gateway',
-      'archer', 'deco', 'omada', 'kasa', 'tapo', 'switch', 'access point'
+    // 竞品分析关键词检测 - 只有明确要求竞品分析时才使用特殊模板
+    const competitorAnalysisKeywords = [
+      '竞品', '竞争对手', 'competitor', 'compare brands', 'brand comparison', 
+      'market analysis', '对比分析', '品牌对比'
     ];
 
-    // 智能家居关键词检测
-    const smartHomeKeywords = [
-      'smart home', 'iot', 'automation', 'smart switch', 'smart plug', 
-      'smart lighting', 'voice control', 'alexa', 'google home', 'zigbee'
-    ];
-
-    // 科技评测关键词检测
-    const techKeywords = [
-      'review', 'unboxing', 'comparison', 'tech', 'gadget', 'device',
-      'performance', 'benchmark', 'setup', 'tutorial'
-    ];
-
-    if (tplinkKeywords.some(keyword => lowerTopic.includes(keyword))) {
+    // TP-Link竞品分析 - 只有TP-Link + 竞品分析时才使用
+    const tplinkBrands = ['tplink', 'tp-link'];
+    const isTPLink = tplinkBrands.some(brand => lowerTopic.includes(brand));
+    const isCompetitorAnalysis = competitorAnalysisKeywords.some(keyword => lowerTopic.includes(keyword));
+    
+    if (isTPLink && isCompetitorAnalysis) {
       return 'tplink';
     }
 
-    if (smartHomeKeywords.some(keyword => lowerTopic.includes(keyword))) {
+    // 智能家居生态分析 - 只有明确询问整个智能家居生态时才使用
+    const smartHomeEcosystemKeywords = [
+      'smart home ecosystem', 'home automation system', 'iot platform',
+      '智能家居生态', '全屋智能', '智能家居系统'
+    ];
+
+    if (smartHomeEcosystemKeywords.some(keyword => lowerTopic.includes(keyword))) {
       return 'smart_home';
     }
 
-    if (techKeywords.some(keyword => lowerTopic.includes(keyword))) {
-      return 'tech';
-    }
-
-    return 'general';
+    // 默认使用产品聚焦模板 - 这是大多数用户的真实需求
+    // 用户通常是在寻找特定产品的评测者，而不是泛泛的内容
+    return 'product_focused';
   }
 }
 
