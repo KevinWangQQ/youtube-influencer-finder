@@ -30,29 +30,16 @@ export const api = {
     const settings = SettingsService.getSettings();
     
     console.log(`🔧 API Keys loaded from settings:`);
-    console.log(`📝 OpenAI Key: ${settings.openaiApiKey ? `${settings.openaiApiKey.substring(0, 8)}...` : 'MISSING'}`);
     console.log(`📺 YouTube Key: ${settings.youtubeApiKey ? `${settings.youtubeApiKey.substring(0, 10)}...` : 'MISSING'}`);
-    
-    if (!settings.openaiApiKey) {
-      throw new ApiError('MISSING_OPENAI_KEY', 'OpenAI API key is required. Please set it in Settings.');
-    }
     
     if (!settings.youtubeApiKey) {
       throw new ApiError('MISSING_YOUTUBE_KEY', 'YouTube API key is required. Please set it in Settings.');
     }
 
     try {
-      // Step 1: Expand keywords using OpenAI
-      const openaiService = new OpenAIService(settings.openaiApiKey);
-      const keywordResponse = await openaiService.expandKeywords({
-        topic: request.topic,
-        maxKeywords: 10,
-        language: 'en'
-      });
+      console.log(`🎯 Direct search for: "${request.topic}"`);
 
-      console.log(`Expanded ${keywordResponse.expandedKeywords.length} keywords`);
-
-      // Step 2: Search YouTube with expanded keywords
+      // 直接使用用户输入进行YouTube搜索
       const youtubeService = new YouTubeService(settings.youtubeApiKey);
       const searchFilters: SearchFilters = {
         region: request.filters.region || 'US',
@@ -60,23 +47,26 @@ export const api = {
         minViews: request.filters.minViews || 10000,
         maxResults: request.filters.maxResults || 50
       };
+      
+      // 使用用户输入的机型作为直接搜索关键词
+      const directKeywords = [request.topic];
       const influencers = await youtubeService.searchInfluencers(
-        keywordResponse.expandedKeywords,
+        directKeywords,
         searchFilters,
         request.topic
       );
 
-      // Step 3: Generate search ID for potential future use
+      // Generate search ID for potential future use
       const searchId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       const response: SearchResponse = {
         searchId,
         results: influencers,
-        expandedKeywords: keywordResponse.expandedKeywords,
+        expandedKeywords: directKeywords, // 直接返回用户输入作为"扩展"关键词
         totalFound: influencers.length
       };
 
-      console.log(`Search completed successfully. Found ${influencers.length} influencers`);
+      console.log(`Direct search completed successfully. Found ${influencers.length} influencers`);
       return response;
 
     } catch (error) {
@@ -120,23 +110,11 @@ export const api = {
   },
 
   async expandKeywords(topic: string): Promise<{ expandedKeywords: string[] }> {
-    const settings = SettingsService.getSettings();
-    
-    if (!settings.openaiApiKey) {
-      throw new ApiError('MISSING_OPENAI_KEY', 'OpenAI API key is required. Please set it in Settings.');
-    }
-
-    try {
-      const openaiService = new OpenAIService(settings.openaiApiKey);
-      const response = await openaiService.expandKeywords({ topic });
-      
-      return {
-        expandedKeywords: response.expandedKeywords
-      };
-    } catch (error) {
-      console.error('Expand keywords error:', error);
-      throw new ApiError('KEYWORD_EXPANSION_ERROR', 'Failed to expand keywords. Please try again.');
-    }
+    // 简化版本：直接返回用户输入，不再进行AI扩展
+    console.log(`🎯 Direct keyword expansion for: "${topic}"`);
+    return {
+      expandedKeywords: [topic]
+    };
   },
 
   async exportToCsv(results: InfluencerResult[]): Promise<Blob> {

@@ -148,22 +148,35 @@ export class YouTubeService {
       const prioritizedKeywords = this.prioritizeKeywords(keywords, originalTopic);
       console.log(`📊 Keyword priority order: ${prioritizedKeywords.join(', ')}`);
 
-      // Search with multiple keywords (prioritized order) - 增加关键词搜索数量
-      for (const keyword of prioritizedKeywords.slice(0, 8)) { // 增加到8个关键词
-        try {
-          const channels = await this.searchByKeyword(keyword, region, Math.min(15, maxResults), originalTopic); // 每个关键词获取更多结果
-          
-          channels.forEach(channel => {
-            if (!allChannels.has(channel.channelId)) {
-              allChannels.set(channel.channelId, channel);
-            } else {
-              // Update relevance score if this channel appears in multiple searches
-              const existing = allChannels.get(channel.channelId)!;
-              existing.relevanceScore = Math.min(100, existing.relevanceScore + 10);
-            }
-          });
-        } catch (error) {
-          console.warn(`Failed to search for keyword: ${keyword}`, error);
+      // 直接搜索策略：对单个关键词进行多种搜索模式
+      for (const keyword of prioritizedKeywords.slice(0, 1)) { // 只处理第一个关键词（用户输入）
+        console.log(`🎯 Performing comprehensive search for: "${keyword}"`);
+        
+        // 使用不同的搜索模式来获取更全面的结果
+        const searchModes = [
+          keyword, // 原始关键词
+          `${keyword} review`, // 评测视频
+          `${keyword} unboxing`, // 开箱视频
+          `${keyword} test`, // 测试视频
+          `${keyword} hands on` // 上手体验
+        ];
+        
+        for (const searchQuery of searchModes) {
+          try {
+            const channels = await this.searchByKeyword(searchQuery, region, Math.min(10, maxResults), originalTopic);
+            
+            channels.forEach(channel => {
+              if (!allChannels.has(channel.channelId)) {
+                allChannels.set(channel.channelId, channel);
+              } else {
+                // Update relevance score if this channel appears in multiple searches
+                const existing = allChannels.get(channel.channelId)!;
+                existing.relevanceScore = Math.min(100, existing.relevanceScore + 15);
+              }
+            });
+          } catch (error) {
+            console.warn(`Failed to search for query: ${searchQuery}`, error);
+          }
         }
       }
 
@@ -205,15 +218,14 @@ export class YouTubeService {
     originalTopic?: string
   ): Promise<InfluencerResult[]> {
     try {
-      // Search for videos first with enhanced search query
+      // 直接搜索策略，使用精确的搜索查询
       const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
       searchUrl.searchParams.set('part', 'snippet');
-      // 改进搜索查询，确保搜索范围包含视频标题和描述
-      const enhancedQuery = `"${keyword}" OR ${keyword} review OR ${keyword} unboxing OR ${keyword} test`;
-      searchUrl.searchParams.set('q', enhancedQuery);
+      // 使用传入的关键词进行精确搜索（已经在上层处理了不同的搜索模式）
+      searchUrl.searchParams.set('q', keyword);
       searchUrl.searchParams.set('type', 'video');
       searchUrl.searchParams.set('regionCode', region);
-      searchUrl.searchParams.set('maxResults', (maxResults * 3).toString()); // 增加搜索结果数量
+      searchUrl.searchParams.set('maxResults', (maxResults * 2).toString()); // 适度增加搜索结果数量
       searchUrl.searchParams.set('order', 'relevance');
       searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
       searchUrl.searchParams.set('key', this.apiKey);

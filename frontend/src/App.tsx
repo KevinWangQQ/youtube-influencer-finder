@@ -22,7 +22,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [hasValidKeys, setHasValidKeys] = useState(false);
   const [recommendations, setRecommendations] = useState<string[]>([]);
-  const [searchStep, setSearchStep] = useState<'idle' | 'expanding' | 'searching' | 'processing' | 'complete'>('idle');
+  const [searchStep, setSearchStep] = useState<'idle' | 'searching' | 'processing' | 'complete'>('idle');
 
   useEffect(() => {
     // Check if user has valid API keys on app load
@@ -38,15 +38,13 @@ function App() {
     setLoading(true);
     setError(null);
     setHasSearched(true);
-    setSearchStep('expanding');
+    setSearchStep('searching');
     // 搜索时自动关闭设置面板
     setShowSettings(false);
 
-    // 注意：缓存管理现在由SettingsService在API key变更时自动处理
-
     // 检测品牌并设置推荐内容
     const detectedBrand = PromptSelector.detectBrand(topic);
-    console.log(`🔍 Searching for: "${topic}"`);
+    console.log(`🔍 Direct searching for: "${topic}"`);
     console.log(`🏷️ Detected brand: ${detectedBrand || 'none'}`);
     
     if (detectedBrand) {
@@ -58,8 +56,7 @@ function App() {
     }
 
     try {
-      setSearchStep('searching');
-      console.log(`🎯 Step: Searching YouTube channels...`);
+      console.log(`🎯 Step: Direct YouTube search for "${topic}"...`);
       
       const searchRequest = {
         topic,
@@ -162,19 +159,22 @@ function App() {
           
           <SearchForm onSearch={handleSearch} loading={loading} />
           
-          {expandedKeywords.length > 0 && (
+          {expandedKeywords.length > 0 && expandedKeywords[0] !== '' && (
             <div className="mb-8 card">
-              <h3 className="text-lg font-semibold mb-3">Expanded Keywords</h3>
+              <h3 className="text-lg font-semibold mb-3">🎯 精确搜索关键词</h3>
               <div className="flex flex-wrap gap-2">
                 {expandedKeywords.map((keyword, index) => (
                   <span 
                     key={index}
-                    className="px-3 py-1 bg-primary-100 text-primary-700 text-sm rounded-full"
+                    className="px-3 py-1 bg-green-100 text-green-700 text-sm rounded-full"
                   >
                     {keyword}
                   </span>
                 ))}
               </div>
+              <p className="text-xs text-gray-600 mt-2">
+                直接使用您输入的机型进行精确搜索，确保最高相关度
+              </p>
             </div>
           )}
 
@@ -239,8 +239,8 @@ function App() {
               </h2>
               <p className="text-gray-500 max-w-md mx-auto">
                 {hasValidKeys 
-                  ? 'Enter a topic above to discover relevant influencers using AI-powered keyword expansion and YouTube search.'
-                  : 'Configure your API keys in Settings to start discovering YouTube influencers.'
+                  ? '输入机型名称以精确搜索相关的YouTube影响者和评测视频，确保最高相关度和准确性。'
+                  : '请在设置中配置YouTube API密钥开始搜索影响者。现在只需要YouTube API密钥即可！'
                 }
               </p>
               {!hasValidKeys && (

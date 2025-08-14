@@ -118,7 +118,7 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
         <div className="p-6 space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              OpenAI API Key
+              OpenAI API Key (可选 - 不再需要)
             </label>
             <div className="relative">
               <input
@@ -147,15 +147,7 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
             </div>
             <div className="flex items-center justify-between mt-2">
               <p className="text-xs text-gray-500">
-                Get your API key from{' '}
-                <a 
-                  href="https://platform.openai.com/api-keys" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary-600 hover:text-primary-700"
-                >
-                  OpenAI Platform
-                </a>
+                <span className="text-gray-400">不再需要 - 应用现在直接搜索用户输入的机型，提高准确率</span>
               </p>
               <button
                 onClick={() => testApiConnection('openai')}
@@ -255,7 +247,7 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
           <button
             onClick={handleSave}
             className="btn-primary"
-            disabled={!settings.openaiApiKey || !settings.youtubeApiKey}
+            disabled={!settings.youtubeApiKey}
           >
             Save Settings
           </button>

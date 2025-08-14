@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 
 interface SearchProgressProps {
-  currentStep: 'idle' | 'expanding' | 'searching' | 'processing' | 'complete';
+  currentStep: 'idle' | 'searching' | 'processing' | 'complete';
   visible: boolean;
 }
 
@@ -19,15 +19,9 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({ currentStep, vis
 
   const steps = [
     {
-      key: 'expanding',
-      title: 'AI 扩展关键词',
-      description: '使用 OpenAI 分析并扩展搜索关键词...',
-      icon: <RobotOutlined />,
-    },
-    {
       key: 'searching', 
-      title: '搜索 YouTube',
-      description: '在 YouTube 上搜索相关影响者频道...',
+      title: '精确搜索 YouTube',
+      description: '直接搜索用户输入的机型，确保高准确率...',
       icon: <SearchOutlined />,
     },
     {
@@ -47,10 +41,9 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({ currentStep, vis
   const getCurrentStepIndex = () => {
     const stepMap = {
       'idle': -1,
-      'expanding': 0,
-      'searching': 1,
-      'processing': 2,
-      'complete': 3,
+      'searching': 0,
+      'processing': 1,
+      'complete': 2,
     };
     return stepMap[currentStep];
   };
@@ -69,8 +62,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({ currentStep, vis
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white m-0">搜索进度</h3>
           <div className="text-sm opacity-90">
-            {currentStep === 'expanding' && '正在扩展关键词...'}
-            {currentStep === 'searching' && '正在搜索频道...'}
+            {currentStep === 'searching' && '正在精确搜索频道...'}
             {currentStep === 'processing' && '正在处理结果...'}
             {currentStep === 'complete' && '搜索完成！'}
           </div>

@@ -49,7 +49,8 @@ export class SettingsService {
 
   static hasRequiredKeys(): boolean {
     const settings = this.getSettings();
-    return Boolean(settings.openaiApiKey && settings.youtubeApiKey);
+    // 现在只需要YouTube API key，不再需要OpenAI key
+    return Boolean(settings.youtubeApiKey);
   }
 
   static clearSettings(): void {
