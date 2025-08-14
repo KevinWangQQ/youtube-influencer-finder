@@ -748,20 +748,16 @@ export class YouTubeService {
 
       // 对单个关键词进行多种搜索模式
       for (const keyword of keywords.slice(0, 1)) { // 只处理第一个关键词（用户输入）
-        console.log(`🎯 Performing comprehensive video search for: "${keyword}"`);
+        console.log(`🎯 Performing direct video search for: "${keyword}"`);
         
-        // 使用不同的搜索模式来获取更全面的结果
+        // 优化：只使用原始关键词进行搜索，避免过多API调用
         const searchModes = [
-          keyword, // 原始关键词
-          `${keyword} review`, // 评测视频
-          `${keyword} unboxing`, // 开箱视频
-          `${keyword} test`, // 测试视频
-          `${keyword} hands on` // 上手体验
+          keyword // 只使用用户输入的原始关键词
         ];
         
         for (const searchQuery of searchModes) {
           try {
-            const videos = await this.searchVideosByKeyword(searchQuery, region, Math.min(15, maxResults));
+            const videos = await this.searchVideosByKeyword(searchQuery, region, Math.min(50, maxResults)); // 增加单次搜索结果数量
             
             videos.forEach(video => {
               if (!allVideos.has(video.videoId)) {
@@ -822,7 +818,8 @@ export class YouTubeService {
       searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
       searchUrl.searchParams.set('key', this.apiKey);
 
-      console.log(`🔍 Searching YouTube videos for: "${keyword}"`);
+      console.log(`🔍 API调用 1/3: 搜索视频 - "${keyword}"`);
+      console.log(`📊 API配额消耗: 100 units (Search API)`);
       
       const searchResponse = await fetch(searchUrl.toString(), {
         method: 'GET',
@@ -854,6 +851,9 @@ export class YouTubeService {
       }
 
       // Get detailed video information
+      console.log(`🔍 API调用 2/3: 获取视频详情 - ${videoIds.length}个视频`);
+      console.log(`📊 API配额消耗: 1 unit (Videos API)`);
+
       const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
       videosUrl.searchParams.set('part', 'snippet,statistics,contentDetails');
       videosUrl.searchParams.set('id', videoIds.join(','));
@@ -879,31 +879,32 @@ export class YouTubeService {
         return [];
       }
 
-      // Get channel information for all videos
-      const channelIds = [...new Set(
-        videosData.items
-          .map(item => item.snippet?.channelId)
-          .filter(Boolean) as string[]
-      )];
-
-      const channelsUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
-      channelsUrl.searchParams.set('part', 'snippet,statistics');
-      channelsUrl.searchParams.set('id', channelIds.join(','));
-      channelsUrl.searchParams.set('key', this.apiKey);
-
-      const channelsResponse = await fetch(channelsUrl.toString(), {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        mode: 'cors'
+      // 优化：创建简化的频道映射，减少API调用
+      // 不单独获取频道信息，使用视频数据中已有的频道基本信息
+      const channelMap = new Map<string, any>();
+      
+      // 从视频数据中提取频道基本信息，避免额外的Channels API调用
+      videosData.items.forEach(video => {
+        const channelId = video.snippet?.channelId;
+        if (channelId && !channelMap.has(channelId)) {
+          channelMap.set(channelId, {
+            id: channelId,
+            snippet: {
+              title: video.snippet?.channelTitle || 'Unknown Channel',
+              thumbnails: {
+                medium: { url: '' } // 暂时留空，可以后续优化
+              },
+              country: 'Unknown'
+            },
+            statistics: {
+              subscriberCount: '0' // 暂时设为0，可以后续通过单独API获取
+            }
+          });
+        }
       });
 
-      const channelsData: YouTubeApiResponse = channelsResponse.ok ? await channelsResponse.json() : { items: [] };
-      const channelMap = new Map(
-        (channelsData.items || []).map(channel => [channel.id, channel])
-      );
+      console.log(`🎯 优化: 跳过频道API调用，节省 1 unit`);
+      console.log(`🎯 本次搜索实际API消耗: 101 units (原来需要102 units)`);
 
       // Process videos into VideoResult format
       const videos: VideoResult[] = [];
