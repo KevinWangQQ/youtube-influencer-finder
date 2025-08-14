@@ -17,7 +17,7 @@ export class SettingsService {
     }
 
     return {
-      openaiApiKey: '',
+      openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
       youtubeApiKey: import.meta.env.VITE_YOUTUBE_API_KEY || ''
     };
   }

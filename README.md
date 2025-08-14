@@ -99,9 +99,10 @@ You'll need API keys from:
 
 4. **Optional Environment Variables**:
    ```
+   VITE_OPENAI_API_KEY=your_openai_api_key_here
    VITE_YOUTUBE_API_KEY=your_youtube_api_key_here
    ```
-   (Users can also set this in the app settings)
+   (Users can also set these in the app settings)
 
 5. **Deploy**: Click "Deploy" and you're live! 🎉
 
