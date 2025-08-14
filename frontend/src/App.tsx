@@ -154,8 +154,8 @@ function App() {
     // 验证设置是否正确加载
     const currentSettings = SettingsService.getSettings();
     console.log('🔍 Current settings after change:', {
-      hasYouTube: !!currentSettings.youtubeApiKey,
-      youtubeKeyPreview: currentSettings.youtubeApiKey ? `${currentSettings.youtubeApiKey.substring(0, 10)}...` : 'EMPTY'
+      keyCount: currentSettings.youtubeApiKeys.length,
+      activeKeys: currentSettings.youtubeApiKeys.filter(k => k.status === 'active').length
     });
     
     console.log('🔄 Settings updated - cleared results and forced refresh');

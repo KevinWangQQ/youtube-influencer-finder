@@ -1,4 +1,5 @@
 import type { InfluencerResult, RecentVideo, SearchFilters, VideoResult } from '../types';
+import { SettingsService } from './settings.service';
 
 interface YouTubeApiResponse {
   items?: any[];
@@ -10,14 +11,88 @@ interface YouTubeApiResponse {
 }
 
 export class YouTubeService {
-  private apiKey: string;
+  constructor() {
+    // 不再需要传入API key，将从SettingsService动态获取
+    console.log(`🔑 YouTubeService initialized with multi-key support`);
+  }
 
-  constructor(apiKey: string) {
-    if (!apiKey) {
-      throw new Error('YouTube API key is required');
+  private getCurrentApiKey(): { key: string; keyId: string } | null {
+    const settings = SettingsService.getSettings();
+    const currentKey = settings.youtubeApiKeys[settings.currentKeyIndex];
+    
+    if (!currentKey || currentKey.status !== 'active') {
+      console.error('🚫 No active API key available');
+      return null;
     }
-    this.apiKey = apiKey;
-    console.log(`🔑 YouTubeService initialized with API key: ${apiKey.substring(0, 10)}...${apiKey.substring(-4)}`);
+    
+    // 记录当前使用的key ID用于调试
+    console.log(`🔑 Using API key: ${currentKey.name} (${currentKey.key.substring(0, 10)}...)`);
+    return { key: currentKey.key, keyId: currentKey.id };
+  }
+
+  private async handleApiError(error: any, keyId: string): Promise<boolean> {
+    console.error('🚫 YouTube API Error:', error);
+    
+    // 检查是否是配额错误
+    if (error.status === 403 && 
+        (error.message?.includes('quota') || error.message?.includes('limit'))) {
+      console.log(`🚫 Quota exhausted for key: ${keyId}`);
+      
+      // 标记当前key为已用尽
+      SettingsService.markKeyAsExhausted(keyId, error.message);
+      
+      // 尝试切换到下一个key
+      const switched = SettingsService.switchToNextKey();
+      if (switched) {
+        console.log(`🔄 Successfully switched to next API key`);
+        return true; // 表示可以重试
+      } else {
+        console.error(`🚫 No more active API keys available`);
+        throw new Error('All YouTube API keys have been exhausted. Please add more keys or wait for quota reset.');
+      }
+    }
+    
+    // 其他类型的错误不切换key
+    return false;
+  }
+
+  private async executeWithRetry<T>(
+    operation: (apiKeyInfo: { key: string; keyId: string }) => Promise<T>
+  ): Promise<T> {
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      try {
+        const apiKeyInfo = this.getCurrentApiKey();
+        if (!apiKeyInfo) {
+          throw new Error('No active YouTube API key available');
+        }
+
+        const result = await operation(apiKeyInfo);
+        
+        // 更新使用统计
+        SettingsService.updateKeyUsage(apiKeyInfo.keyId, 101); // 假设每次操作消耗101 units
+        
+        return result;
+      } catch (error: any) {
+        console.error(`🚫 API operation failed (attempt ${attempt + 1}/${maxRetries}):`, error);
+        
+        const currentKeyInfo = this.getCurrentApiKey();
+        if (currentKeyInfo) {
+          const shouldRetry = await this.handleApiError(error, currentKeyInfo.keyId);
+          if (shouldRetry && attempt < maxRetries - 1) {
+            attempt++;
+            console.log(`🔄 Retrying with new API key...`);
+            continue;
+          }
+        }
+        
+        throw error;
+      }
+    }
+    
+    throw new Error('Max retries exceeded');
   }
 
   // 测试API连接状态
@@ -31,7 +106,11 @@ export class YouTubeService {
       testUrl.searchParams.set('q', 'test');
       testUrl.searchParams.set('type', 'video');
       testUrl.searchParams.set('maxResults', '1');
-      testUrl.searchParams.set('key', this.apiKey);
+      const apiKeyInfo = this.getCurrentApiKey();
+      if (!apiKeyInfo) {
+        return { success: false, message: 'No active API key available' };
+      }
+      testUrl.searchParams.set('key', apiKeyInfo.key);
 
       const response = await fetch(testUrl.toString(), {
         method: 'GET',
@@ -240,10 +319,14 @@ export class YouTubeService {
       searchUrl.searchParams.set('maxResults', (maxResults * 2).toString()); // 适度增加搜索结果数量
       searchUrl.searchParams.set('order', 'relevance');
       searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
-      searchUrl.searchParams.set('key', this.apiKey);
+      const currentApiKey = this.getCurrentApiKey();
+      if (!currentApiKey) {
+        throw new Error('No active API key available');
+      }
+      searchUrl.searchParams.set('key', currentApiKey.key);
 
       console.log(`🔍 Searching YouTube for: "${keyword}"`);
-      console.log(`📡 API URL: ${searchUrl.toString().replace(this.apiKey, 'API_KEY_HIDDEN')}`);
+      console.log(`📡 API URL: ${searchUrl.toString().replace(currentApiKey.key, 'API_KEY_HIDDEN')}`);
       
       const searchResponse = await fetch(searchUrl.toString(), {
         method: 'GET',
@@ -326,7 +409,11 @@ export class YouTubeService {
       const channelsUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
       channelsUrl.searchParams.set('part', 'snippet,statistics,brandingSettings');
       channelsUrl.searchParams.set('id', channelIds.slice(0, maxResults).join(','));
-      channelsUrl.searchParams.set('key', this.apiKey);
+      const currentApiKey2 = this.getCurrentApiKey();
+      if (!currentApiKey2) {
+        throw new Error('No active API key available');
+      }
+      channelsUrl.searchParams.set('key', currentApiKey2.key);
 
       const channelsResponse = await fetch(channelsUrl.toString(), {
         method: 'GET',
@@ -462,7 +549,11 @@ export class YouTubeService {
       searchUrl.searchParams.set('type', 'video');
       searchUrl.searchParams.set('order', 'relevance'); // 改为按相关性排序
       searchUrl.searchParams.set('maxResults', '20'); // 获取更多视频
-      searchUrl.searchParams.set('key', this.apiKey);
+      const currentApiKey = this.getCurrentApiKey();
+      if (!currentApiKey) {
+        throw new Error('No active API key available');
+      }
+      searchUrl.searchParams.set('key', currentApiKey.key);
 
       const searchResponse = await fetch(searchUrl.toString(), {
         method: 'GET',
@@ -493,7 +584,11 @@ export class YouTubeService {
       const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
       videosUrl.searchParams.set('part', 'snippet,statistics');
       videosUrl.searchParams.set('id', videoIds.join(','));
-      videosUrl.searchParams.set('key', this.apiKey);
+      const currentApiKey3 = this.getCurrentApiKey();
+      if (!currentApiKey3) {
+        throw new Error('No active API key available');
+      }
+      videosUrl.searchParams.set('key', currentApiKey3.key);
 
       const videosResponse = await fetch(videosUrl.toString(), {
         method: 'GET',
@@ -806,7 +901,7 @@ export class YouTubeService {
     region: string, 
     maxResults: number
   ): Promise<VideoResult[]> {
-    try {
+    return this.executeWithRetry(async (apiKeyInfo) => {
       // 直接搜索视频
       const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
       searchUrl.searchParams.set('part', 'snippet');
@@ -816,11 +911,11 @@ export class YouTubeService {
       searchUrl.searchParams.set('maxResults', maxResults.toString());
       searchUrl.searchParams.set('order', 'relevance');
       searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
-      searchUrl.searchParams.set('key', this.apiKey);
+      searchUrl.searchParams.set('key', apiKeyInfo.key);
 
       console.log(`🔍 API调用 1/3: 搜索视频 - "${keyword}"`);
       console.log(`📊 API配额消耗: 100 units (Search API)`);
-      
+
       const searchResponse = await fetch(searchUrl.toString(), {
         method: 'GET',
         headers: {
@@ -831,8 +926,12 @@ export class YouTubeService {
       });
       
       if (!searchResponse.ok) {
-        console.error(`YouTube API Error ${searchResponse.status} for video search: ${keyword}`);
-        return [];
+        const errorData = await searchResponse.json().catch(() => ({}));
+        throw {
+          status: searchResponse.status,
+          message: errorData?.error?.message || searchResponse.statusText,
+          details: errorData
+        };
       }
 
       const searchData: YouTubeApiResponse = await searchResponse.json();
@@ -857,7 +956,7 @@ export class YouTubeService {
       const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
       videosUrl.searchParams.set('part', 'snippet,statistics,contentDetails');
       videosUrl.searchParams.set('id', videoIds.join(','));
-      videosUrl.searchParams.set('key', this.apiKey);
+      videosUrl.searchParams.set('key', apiKeyInfo.key);
 
       const videosResponse = await fetch(videosUrl.toString(), {
         method: 'GET',
@@ -869,8 +968,12 @@ export class YouTubeService {
       });
 
       if (!videosResponse.ok) {
-        console.warn(`YouTube Videos API error ${videosResponse.status} for videos`);
-        return [];
+        const errorData = await videosResponse.json().catch(() => ({}));
+        throw {
+          status: videosResponse.status,
+          message: errorData?.error?.message || videosResponse.statusText,
+          details: errorData
+        };
       }
 
       const videosData: YouTubeApiResponse = await videosResponse.json();
@@ -921,11 +1024,7 @@ export class YouTubeService {
       }
 
       return videos;
-
-    } catch (error) {
-      console.error(`Search videos by keyword error for "${keyword}":`, error);
-      return [];
-    }
+    });
   }
 
   private async processVideoData(
@@ -987,8 +1086,12 @@ export class YouTubeService {
 
   // 生成API key的安全哈希值用于缓存key
   private getApiKeyHash(): string {
+    const apiKeyInfo = this.getCurrentApiKey();
+    if (!apiKeyInfo) {
+      return 'no_key';
+    }
     // 使用API key的前8位和后4位创建唯一标识，避免泄露完整key
-    return `${this.apiKey.substring(0, 8)}_${this.apiKey.substring(-4)}`;
+    return `${apiKeyInfo.key.substring(0, 8)}_${apiKeyInfo.key.substring(-4)}`;
   }
 
   private getFromCache(key: string): any {

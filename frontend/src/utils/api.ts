@@ -26,20 +26,17 @@ export class ApiError extends Error {
 
 export const api = {
   async searchInfluencers(request: SearchRequest): Promise<SearchResponse> {
-    const settings = SettingsService.getSettings();
+    console.log(`🔧 Checking API Keys...`);
     
-    console.log(`🔧 API Keys loaded from settings:`);
-    console.log(`📺 YouTube Key: ${settings.youtubeApiKey ? `${settings.youtubeApiKey.substring(0, 10)}...` : 'MISSING'}`);
-    
-    if (!settings.youtubeApiKey) {
-      throw new ApiError('MISSING_YOUTUBE_KEY', 'YouTube API key is required. Please set it in Settings.');
+    if (!SettingsService.hasRequiredKeys()) {
+      throw new ApiError('MISSING_YOUTUBE_KEY', 'No active YouTube API keys available. Please add API keys in Settings.');
     }
 
     try {
       console.log(`🎯 Direct search for: "${request.topic}"`);
 
-      // 直接使用用户输入进行YouTube搜索
-      const youtubeService = new YouTubeService(settings.youtubeApiKey);
+      // 使用新的多key YouTube服务
+      const youtubeService = new YouTubeService();
       const searchFilters: SearchFilters = {
         region: request.filters.region || 'US',
         minSubscribers: request.filters.minSubscribers || 1000,

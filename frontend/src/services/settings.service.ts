@@ -1,6 +1,17 @@
+export interface YouTubeApiKey {
+  id: string;
+  name: string;
+  key: string;
+  status: 'active' | 'exhausted' | 'error';
+  quotaUsed: number;
+  quotaLimit: number;
+  lastError?: string;
+  lastUsed?: string;
+}
+
 export interface AppSettings {
-  openaiApiKey: string;
-  youtubeApiKey: string;
+  youtubeApiKeys: YouTubeApiKey[];
+  currentKeyIndex: number;
 }
 
 export class SettingsService {
@@ -13,26 +24,56 @@ export class SettingsService {
       
       if (stored) {
         const parsed = JSON.parse(stored);
-        console.log(`✅ Parsed settings:`, {
-          hasOpenAI: !!parsed.openaiApiKey,
-          hasYouTube: !!parsed.youtubeApiKey,
-          youtubeKeyPreview: parsed.youtubeApiKey ? `${parsed.youtubeApiKey.substring(0, 10)}...` : 'EMPTY'
-        });
-        return parsed;
+        
+        // 迁移旧格式数据
+        if (parsed.youtubeApiKey && !parsed.youtubeApiKeys) {
+          console.log(`🔄 Migrating legacy settings format`);
+          const migratedSettings: AppSettings = {
+            youtubeApiKeys: [{
+              id: 'legacy-key',
+              name: 'Legacy API Key',
+              key: parsed.youtubeApiKey,
+              status: 'active',
+              quotaUsed: 0,
+              quotaLimit: 10000
+            }],
+            currentKeyIndex: 0
+          };
+          this.saveSettings(migratedSettings);
+          return migratedSettings;
+        }
+        
+        // 验证新格式数据
+        if (parsed.youtubeApiKeys && Array.isArray(parsed.youtubeApiKeys)) {
+          console.log(`✅ Parsed settings:`, {
+            keyCount: parsed.youtubeApiKeys.length,
+            currentIndex: parsed.currentKeyIndex,
+            activeKey: parsed.youtubeApiKeys[parsed.currentKeyIndex]?.name || 'None'
+          });
+          return parsed;
+        }
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
     }
 
-    const defaultSettings = {
-      openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-      youtubeApiKey: import.meta.env.VITE_YOUTUBE_API_KEY || ''
+    // 创建默认设置
+    const defaultKey = import.meta.env.VITE_YOUTUBE_API_KEY;
+    const defaultSettings: AppSettings = {
+      youtubeApiKeys: defaultKey ? [{
+        id: 'default-key',
+        name: 'Default API Key',
+        key: defaultKey,
+        status: 'active',
+        quotaUsed: 0,
+        quotaLimit: 10000
+      }] : [],
+      currentKeyIndex: 0
     };
     
     console.log(`🏗️ Using default settings:`, {
-      hasOpenAI: !!defaultSettings.openaiApiKey,
-      hasYouTube: !!defaultSettings.youtubeApiKey,
-      youtubeKeyPreview: defaultSettings.youtubeApiKey ? `${defaultSettings.youtubeApiKey.substring(0, 10)}...` : 'EMPTY'
+      keyCount: defaultSettings.youtubeApiKeys.length,
+      hasDefaultKey: !!defaultKey
     });
     
     return defaultSettings;
@@ -41,9 +82,9 @@ export class SettingsService {
   static saveSettings(settings: AppSettings): void {
     try {
       console.log(`💾 Saving settings to localStorage:`, {
-        hasOpenAI: !!settings.openaiApiKey,
-        hasYouTube: !!settings.youtubeApiKey,
-        youtubeKeyPreview: settings.youtubeApiKey ? `${settings.youtubeApiKey.substring(0, 10)}...` : 'EMPTY'
+        keyCount: settings.youtubeApiKeys.length,
+        currentIndex: settings.currentKeyIndex,
+        activeKey: settings.youtubeApiKeys[settings.currentKeyIndex]?.name || 'None'
       });
       
       const previousSettings = this.getSettings();
@@ -60,9 +101,11 @@ export class SettingsService {
         console.error(`❌ Verification failed: Settings not saved correctly`);
       }
       
-      // 如果API key发生变化，清理相关缓存
-      if (previousSettings.openaiApiKey !== settings.openaiApiKey || 
-          previousSettings.youtubeApiKey !== settings.youtubeApiKey) {
+      // 如果API keys发生变化，清理相关缓存
+      const previousKeys = previousSettings.youtubeApiKeys.map(k => k.key);
+      const currentKeys = settings.youtubeApiKeys.map(k => k.key);
+      
+      if (JSON.stringify(previousKeys) !== JSON.stringify(currentKeys)) {
         this.clearRelatedCache();
         console.log('🗑️ API keys changed - cleared all related cache');
       }
@@ -71,19 +114,113 @@ export class SettingsService {
     }
   }
 
-  static updateSetting<K extends keyof AppSettings>(
-    key: K, 
-    value: AppSettings[K]
-  ): void {
+  // YouTube API Key管理方法
+  static getCurrentYouTubeApiKey(): string | null {
     const settings = this.getSettings();
-    settings[key] = value;
+    const currentKey = settings.youtubeApiKeys[settings.currentKeyIndex];
+    return currentKey?.status === 'active' ? currentKey.key : null;
+  }
+
+  static addYouTubeApiKey(name: string, key: string): void {
+    const settings = this.getSettings();
+    const newKey: YouTubeApiKey = {
+      id: `key-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      key,
+      status: 'active',
+      quotaUsed: 0,
+      quotaLimit: 10000
+    };
+    
+    settings.youtubeApiKeys.push(newKey);
     this.saveSettings(settings);
+    console.log(`📝 Added new YouTube API key: ${name}`);
+  }
+
+  static removeYouTubeApiKey(keyId: string): void {
+    const settings = this.getSettings();
+    const keyIndex = settings.youtubeApiKeys.findIndex(k => k.id === keyId);
+    
+    if (keyIndex >= 0) {
+      const removedKey = settings.youtubeApiKeys[keyIndex];
+      settings.youtubeApiKeys.splice(keyIndex, 1);
+      
+      // 调整当前索引
+      if (settings.currentKeyIndex >= keyIndex && settings.currentKeyIndex > 0) {
+        settings.currentKeyIndex--;
+      }
+      if (settings.currentKeyIndex >= settings.youtubeApiKeys.length) {
+        settings.currentKeyIndex = Math.max(0, settings.youtubeApiKeys.length - 1);
+      }
+      
+      this.saveSettings(settings);
+      console.log(`🗑️ Removed YouTube API key: ${removedKey.name}`);
+    }
+  }
+
+  static switchToNextKey(): boolean {
+    const settings = this.getSettings();
+    const activeKeys = settings.youtubeApiKeys.filter(k => k.status === 'active');
+    
+    if (activeKeys.length <= 1) {
+      console.warn('🚫 No alternative active keys available');
+      return false;
+    }
+
+    // 找到下一个可用的key
+    let nextIndex = (settings.currentKeyIndex + 1) % settings.youtubeApiKeys.length;
+    let attempts = 0;
+    
+    while (attempts < settings.youtubeApiKeys.length) {
+      const nextKey = settings.youtubeApiKeys[nextIndex];
+      if (nextKey && nextKey.status === 'active') {
+        settings.currentKeyIndex = nextIndex;
+        this.saveSettings(settings);
+        console.log(`🔄 Switched to API key: ${nextKey.name}`);
+        return true;
+      }
+      nextIndex = (nextIndex + 1) % settings.youtubeApiKeys.length;
+      attempts++;
+    }
+    
+    console.error('🚫 No active API keys available');
+    return false;
+  }
+
+  static markKeyAsExhausted(keyId: string, error?: string): void {
+    const settings = this.getSettings();
+    const key = settings.youtubeApiKeys.find(k => k.id === keyId);
+    
+    if (key) {
+      key.status = 'exhausted';
+      key.lastError = error;
+      key.lastUsed = new Date().toISOString();
+      this.saveSettings(settings);
+      console.log(`🚫 Marked API key as exhausted: ${key.name}`);
+    }
+  }
+
+  static updateKeyUsage(keyId: string, quotaUsed: number): void {
+    const settings = this.getSettings();
+    const key = settings.youtubeApiKeys.find(k => k.id === keyId);
+    
+    if (key) {
+      key.quotaUsed = quotaUsed;
+      key.lastUsed = new Date().toISOString();
+      
+      // 如果接近配额限制，标记为exhausted
+      if (quotaUsed >= key.quotaLimit * 0.95) {
+        key.status = 'exhausted';
+        console.log(`⚠️ API key approaching quota limit: ${key.name}`);
+      }
+      
+      this.saveSettings(settings);
+    }
   }
 
   static hasRequiredKeys(): boolean {
     const settings = this.getSettings();
-    // 现在只需要YouTube API key，不再需要OpenAI key
-    return Boolean(settings.youtubeApiKey);
+    return settings.youtubeApiKeys.some(key => key.status === 'active');
   }
 
   static clearSettings(): void {
