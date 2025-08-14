@@ -43,7 +43,7 @@ export const VideoResultsList = ({ results, onExport, loading }: VideoResultsLis
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 fade-in">
       {/* Results Header */}
       <div className="card">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
@@ -122,15 +122,19 @@ export const VideoResultsList = ({ results, onExport, loading }: VideoResultsLis
 
       {/* Results Grid/List */}
       {viewMode === 'card' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {sortedResults.map((video) => (
-            <VideoCard key={video.videoId} video={video} />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 scroll-container">
+          {sortedResults.map((video, index) => (
+            <div key={video.videoId} className="fade-in" style={{ animationDelay: `${index * 0.05}s` }}>
+              <VideoCard video={video} />
+            </div>
           ))}
         </div>
       ) : (
-        <div className="space-y-4">
-          {sortedResults.map((video) => (
-            <VideoListItem key={video.videoId} video={video} />
+        <div className="space-y-4 scroll-container">
+          {sortedResults.map((video, index) => (
+            <div key={video.videoId} className="fade-in" style={{ animationDelay: `${index * 0.03}s` }}>
+              <VideoListItem video={video} />
+            </div>
           ))}
         </div>
       )}

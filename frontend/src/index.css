@@ -4,11 +4,47 @@
   box-sizing: border-box;
 }
 
+/* 优化滚动性能和字体渲染 */
+html {
+  /* 启用硬件加速和平滑滚动 */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  /* 优化字体渲染 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 防止字体闪烁 */
+  font-display: swap;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   background-color: #f9fafb;
   color: #111827;
   line-height: 1.5;
+  /* 启用GPU加速 */
+  transform: translateZ(0);
+  /* 优化渲染性能 */
+  will-change: scroll-position;
+  /* 防止滚动时的字体模糊 */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  /* 防止文本选择时的抖动 */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+/* 允许用户选择文本内容 */
+.selectable, 
+p, 
+span, 
+div[class*="text-"], 
+input, 
+textarea {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
 }
 
 .container {
@@ -25,16 +61,28 @@ body {
   border-radius: 0.5rem;
   border: none;
   cursor: pointer;
-  transition: background-color 0.2s;
+  /* 优化过渡性能 - 只对transform和opacity使用GPU加速 */
+  transition: background-color 0.2s ease-out, transform 0.1s ease-out;
+  /* 启用GPU加速 */
+  transform: translateZ(0);
+  will-change: background-color, transform;
 }
 
 .btn-primary:hover {
   background-color: #1d4ed8;
+  /* 微妙的hover效果，使用transform而不是box-shadow */
+  transform: translateZ(0) translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateZ(0) translateY(0);
+  transition-duration: 0.05s;
 }
 
 .btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: translateZ(0);
 }
 
 .btn-secondary {
@@ -45,11 +93,19 @@ body {
   border-radius: 0.5rem;
   border: none;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s ease-out, transform 0.1s ease-out;
+  transform: translateZ(0);
+  will-change: background-color, transform;
 }
 
 .btn-secondary:hover {
   background-color: #d1d5db;
+  transform: translateZ(0) translateY(-1px);
+}
+
+.btn-secondary:active {
+  transform: translateZ(0) translateY(0);
+  transition-duration: 0.05s;
 }
 
 .input-field {
@@ -58,7 +114,11 @@ body {
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  /* 优化输入框过渡性能 */
+  transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+  /* 防止输入时的抖动 */
+  transform: translateZ(0);
+  will-change: border-color, box-shadow;
 }
 
 .input-field:focus {
@@ -73,6 +133,19 @@ body {
   border: 1px solid #e5e7eb;
   padding: 1.5rem;
   margin-bottom: 1rem;
+  /* 优化卡片渲染性能 */
+  transform: translateZ(0);
+  /* 防止滚动时的重绘 */
+  contain: layout style paint;
+  /* 优化hover效果 */
+  transition: box-shadow 0.2s ease-out, transform 0.1s ease-out;
+  will-change: box-shadow, transform;
+}
+
+/* 优化卡片hover效果 */
+.card:hover {
+  transform: translateZ(0) translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .line-clamp-2 {
@@ -180,20 +253,61 @@ body {
 .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
 .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
 
-.transition-colors { transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out; }
-.transition-shadow { transition: box-shadow 0.15s ease-in-out; }
+/* 优化过渡效果 - 使用GPU加速 */
+.transition-colors { 
+  transition: color 0.15s ease-out, background-color 0.15s ease-out; 
+  transform: translateZ(0);
+  will-change: color, background-color;
+}
 
+.transition-shadow { 
+  transition: box-shadow 0.15s ease-out; 
+  transform: translateZ(0);
+  will-change: box-shadow;
+}
+
+/* 优化旋转动画 - 使用GPU加速 */
 .animate-spin {
   animation: spin 1s linear infinite;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 @keyframes spin {
   from {
-    transform: rotate(0deg);
+    transform: translateZ(0) rotate(0deg);
   }
   to {
-    transform: rotate(360deg);
+    transform: translateZ(0) rotate(360deg);
   }
+}
+
+/* 添加淡入动画优化 */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+  transform: translateZ(0);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateZ(0) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(0) translateY(0);
+  }
+}
+
+/* 优化滚动容器 */
+.scroll-container {
+  /* 启用硬件加速滚动 */
+  -webkit-overflow-scrolling: touch;
+  /* 防止滚动时的重绘 */
+  contain: layout style paint;
+  /* 优化滚动性能 */
+  transform: translateZ(0);
+  will-change: scroll-position;
 }
 
 .min-w-0 { min-width: 0; }
@@ -215,4 +329,65 @@ body {
 @media (min-width: 1024px) {
   .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* 针对高分辨率屏幕的优化 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  body {
+    /* 高DPI屏幕的字体渲染优化 */
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+/* 针对移动设备的滚动优化 */
+@media (max-width: 768px) {
+  body {
+    /* 移动设备上的滚动优化 */
+    -webkit-overflow-scrolling: touch;
+    /* 防止iOS上的弹性滚动 */
+    overscroll-behavior: none;
+  }
+  
+  .card {
+    /* 移动设备上减少transform以提高性能 */
+    will-change: auto;
+  }
+  
+  .card:hover {
+    /* 移动设备上禁用hover效果 */
+    transform: translateZ(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* 针对Safari的特殊优化 */
+@supports (-webkit-appearance: none) {
+  html {
+    /* Safari的滚动优化 */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  body {
+    /* Safari的字体渲染优化 */
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* 减少动画对于喜欢减少动作的用户 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .animate-spin {
+    animation: none;
+  }
+  
+  .fade-in {
+    animation: none;
+    opacity: 1;
+    transform: translateZ(0);
+  }
 }
