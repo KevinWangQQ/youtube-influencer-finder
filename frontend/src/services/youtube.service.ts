@@ -640,7 +640,7 @@ export class YouTubeService {
 
       // 按相关性和播放量综合排序，优先显示相关的高播放量视频
       const sortedVideos = videos
-        .filter(video => video.relevanceScore > 0.5) // 提高相关性过滤标准
+        .filter(video => video.relevanceScore > 0.2) // 降低相关性过滤标准，获得更多结果
         .sort((a, b) => {
           // 综合考虑相关性分数和播放量，提高相关性权重
           const scoreA = a.relevanceScore * 0.8 + Math.log10(a.viewCount + 1) * 0.2;
@@ -818,9 +818,7 @@ export class YouTubeService {
     originalTopic?: string
   ): Promise<VideoResult[]> {
     const {
-      region = 'US',
-      minViews = 10000,
-      maxResults = 50
+      region = 'US'
     } = filters;
 
     // Generate cache key that includes API key identifier
@@ -841,18 +839,18 @@ export class YouTubeService {
 
       const allVideos = new Map<string, VideoResult>();
 
-      // 对单个关键词进行多种搜索模式
+      // 对单个关键词进行多种搜索模式 - 扩展搜索以获得更多结果
       for (const keyword of keywords.slice(0, 1)) { // 只处理第一个关键词（用户输入）
-        console.log(`🎯 Performing direct video search for: "${keyword}"`);
+        console.log(`🎯 Performing comprehensive video search for: "${keyword}"`);
         
-        // 优化：只使用原始关键词进行搜索，避免过多API调用
+        // 只使用原始关键词进行搜索
         const searchModes = [
           keyword // 只使用用户输入的原始关键词
         ];
         
         for (const searchQuery of searchModes) {
           try {
-            const videos = await this.searchVideosByKeyword(searchQuery, region, Math.min(50, maxResults)); // 增加单次搜索结果数量
+            const videos = await this.searchVideosByKeyword(searchQuery, region, 50); // 使用最大搜索结果数量
             
             videos.forEach(video => {
               if (!allVideos.has(video.videoId)) {
@@ -869,9 +867,8 @@ export class YouTubeService {
         }
       }
 
-      // Filter results based on criteria
-      let results = Array.from(allVideos.values())
-        .filter(video => video.viewCount >= minViews);
+      // 移除过严格的播放量过滤，保留所有搜索结果
+      let results = Array.from(allVideos.values()); // 不再过滤播放量，显示所有相关视频
 
       // Sort by relevance score and view count
       results = results
@@ -882,7 +879,7 @@ export class YouTubeService {
           }
           return relevanceDiff;
         })
-        .slice(0, maxResults);
+        .slice(0, 50); // 返回最多50个结果
 
       // Cache the results for 30 minutes
       this.setCache(cacheKey, results, 30 * 60 * 1000);
@@ -908,7 +905,7 @@ export class YouTubeService {
       searchUrl.searchParams.set('q', keyword);
       searchUrl.searchParams.set('type', 'video');
       searchUrl.searchParams.set('regionCode', region);
-      searchUrl.searchParams.set('maxResults', maxResults.toString());
+      searchUrl.searchParams.set('maxResults', maxResults.toString()); // 使用传入的参数
       searchUrl.searchParams.set('order', 'relevance');
       searchUrl.searchParams.set('publishedAfter', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString());
       searchUrl.searchParams.set('key', apiKeyInfo.key);
