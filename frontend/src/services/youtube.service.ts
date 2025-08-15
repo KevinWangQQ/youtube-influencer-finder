@@ -818,18 +818,15 @@ export class YouTubeService {
     originalTopic?: string
   ): Promise<VideoResult[]> {
     const {
-      region = 'US'
+      region = 'US',
+      minSubscribers = 1000,
+      minViews = 10000,
+      maxResults = 50
     } = filters;
 
-    // Generate cache key that includes API key identifier
-    const cacheKey = this.generateCacheKey('videos_search', { keywords, filters, apiKeyHash: this.getApiKeyHash() });
-    
-    // Check cache first
-    const cachedResult = this.getFromCache(cacheKey);
-    if (cachedResult) {
-      console.log(`Returning cached video search results for keywords: ${keywords.join(', ')}`);
-      return cachedResult;
-    }
+    // 禁用缓存 - 每次都重新搜索以确保最新结果
+    console.log(`🔄 Cache disabled - performing fresh search for: ${keywords.join(', ')}`);
+    console.log(`🎯 Applied filters - Region: ${region}, Min Subscribers: ${minSubscribers}, Min Views: ${minViews}, Max Results: ${maxResults}`);
 
     try {
       console.log(`🎥 Searching YouTube videos with keywords: ${keywords.join(', ')}`);
@@ -850,7 +847,7 @@ export class YouTubeService {
         
         for (const searchQuery of searchModes) {
           try {
-            const videos = await this.searchVideosByKeyword(searchQuery, region, 50); // 使用最大搜索结果数量
+            const videos = await this.searchVideosByKeyword(searchQuery, filters); // 传递完整的filters对象
             
             videos.forEach(video => {
               if (!allVideos.has(video.videoId)) {
@@ -867,8 +864,20 @@ export class YouTubeService {
         }
       }
 
-      // 移除过严格的播放量过滤，保留所有搜索结果
-      let results = Array.from(allVideos.values()); // 不再过滤播放量，显示所有相关视频
+      // 应用高级搜索过滤条件
+      let results = Array.from(allVideos.values())
+        .filter(video => {
+          // 应用最少播放量过滤
+          const meetsViewRequirement = video.viewCount >= minViews;
+          // 应用最少订阅数过滤（如果有频道订阅数信息）
+          const meetsSubscriberRequirement = !video.channel.subscriberCount || video.channel.subscriberCount >= minSubscribers;
+          
+          console.log(`🔍 Video "${video.title}" - Views: ${video.viewCount} (min: ${minViews}), Channel Subs: ${video.channel.subscriberCount} (min: ${minSubscribers}) - ${meetsViewRequirement && meetsSubscriberRequirement ? 'PASS' : 'FILTER OUT'}`);
+          
+          return meetsViewRequirement && meetsSubscriberRequirement;
+        });
+
+      console.log(`📊 After applying filters: ${results.length} videos remain`);
 
       // Sort by relevance score and view count
       results = results
@@ -879,10 +888,10 @@ export class YouTubeService {
           }
           return relevanceDiff;
         })
-        .slice(0, 50); // 返回最多50个结果
+        .slice(0, maxResults); // 使用用户指定的最大结果数
 
-      // Cache the results for 30 minutes
-      this.setCache(cacheKey, results, 30 * 60 * 1000);
+      // 不再缓存结果 - 每次都重新搜索
+      console.log(`🔄 Skipping cache - returning fresh results`);
 
       console.log(`Found ${results.length} videos matching criteria`);
       return results;
@@ -895,9 +904,9 @@ export class YouTubeService {
 
   private async searchVideosByKeyword(
     keyword: string, 
-    region: string, 
-    maxResults: number
+    filters: SearchFilters
   ): Promise<VideoResult[]> {
+    const { region = 'US', maxResults = 50 } = filters;
     return this.executeWithRetry(async (apiKeyInfo) => {
       // 直接搜索视频
       const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
@@ -983,7 +992,44 @@ export class YouTubeService {
       // 不单独获取频道信息，使用视频数据中已有的频道基本信息
       const channelMap = new Map<string, any>();
       
-      // 从视频数据中提取频道基本信息，避免额外的Channels API调用
+      // 获取频道详细信息以支持订阅数过滤
+      const uniqueChannelIds = [...new Set(videosData.items.map(video => video.snippet?.channelId).filter(Boolean))];
+      
+      if (uniqueChannelIds.length > 0) {
+        console.log(`🔍 API调用 3/3: 获取频道详情 - ${uniqueChannelIds.length}个频道`);
+        console.log(`📊 API配额消耗: 1 unit (Channels API)`);
+        
+        const channelsUrl = new URL('https://www.googleapis.com/youtube/v3/channels');
+        channelsUrl.searchParams.set('part', 'snippet,statistics');
+        channelsUrl.searchParams.set('id', uniqueChannelIds.join(','));
+        channelsUrl.searchParams.set('key', apiKeyInfo.key);
+
+        try {
+          const channelsResponse = await fetch(channelsUrl.toString(), {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            mode: 'cors'
+          });
+
+          if (channelsResponse.ok) {
+            const channelsData: YouTubeApiResponse = await channelsResponse.json();
+            if (channelsData.items) {
+              channelsData.items.forEach(channel => {
+                channelMap.set(channel.id, channel);
+              });
+            }
+          } else {
+            console.warn('频道API调用失败，使用基础信息');
+          }
+        } catch (error) {
+          console.warn('频道API调用出错，使用基础信息:', error);
+        }
+      }
+      
+      // 对没有获取到详细信息的频道，创建基础信息
       videosData.items.forEach(video => {
         const channelId = video.snippet?.channelId;
         if (channelId && !channelMap.has(channelId)) {
@@ -992,19 +1038,18 @@ export class YouTubeService {
             snippet: {
               title: video.snippet?.channelTitle || 'Unknown Channel',
               thumbnails: {
-                medium: { url: '' } // 暂时留空，可以后续优化
+                medium: { url: '' }
               },
               country: 'Unknown'
             },
             statistics: {
-              subscriberCount: '0' // 暂时设为0，可以后续通过单独API获取
+              subscriberCount: '0'
             }
           });
         }
       });
 
-      console.log(`🎯 优化: 跳过频道API调用，节省 1 unit`);
-      console.log(`🎯 本次搜索实际API消耗: 101 units (原来需要102 units)`);
+      console.log(`🎯 本次搜索总API消耗: 102 units (Search + Videos + Channels)`);
 
       // Process videos into VideoResult format
       const videos: VideoResult[] = [];
@@ -1088,7 +1133,7 @@ export class YouTubeService {
       return 'no_key';
     }
     // 使用API key的前8位和后4位创建唯一标识，避免泄露完整key
-    return `${apiKeyInfo.key.substring(0, 8)}_${apiKeyInfo.key.substring(-4)}`;
+    return `${apiKeyInfo.key.substring(0, 8)}_${apiKeyInfo.key.slice(-4)}`;
   }
 
   private getFromCache(key: string): any {

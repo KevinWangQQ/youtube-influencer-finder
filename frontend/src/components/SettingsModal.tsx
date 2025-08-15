@@ -213,7 +213,7 @@ export const SettingsModal = ({ isOpen, onClose, onSave }: SettingsModalProps) =
                           <span className="text-sm text-gray-600">
                             {showKeys[apiKey.id] 
                               ? apiKey.key 
-                              : `${apiKey.key.substring(0, 8)}...${apiKey.key.substring(-4)}`
+                              : `${apiKey.key.substring(0, 8)}...${apiKey.key.slice(-4)}`
                             }
                           </span>
                           <button
